@@ -1,0 +1,50 @@
+# ──────────────────────────────────────────────────────────
+# Swift Writer — project metadata & dependencies
+#
+# Swift is an *application*, not a library, so we don't
+# declare a [build-system] and we tell uv not to try to
+# package it (``tool.uv.package = false``). Runtime deps
+# live under ``[project.dependencies]``; dev tools live in
+# the PEP 735 ``[dependency-groups]`` table so ``uv sync``
+# installs them by default and CI/Docker can opt out with
+# ``uv sync --no-dev``.
+# ──────────────────────────────────────────────────────────
+
+[project]
+name = "swift-writer"
+version = "0.1.0"
+description = "Swift — a multi-agent AI article writer (FastAPI + OpenAI Agents SDK + OpenRouter)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Swift Writer contributors" }]
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "openai-agents>=0.0.14",
+    "openai>=1.54",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "sse-starlette>=2.1",
+    "httpx>=0.27",
+    "python-slugify>=8.0",
+    "fastmcp>=0.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.uv]
+# Swift is an application; don't try to build/install it as a wheel.
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning"]
