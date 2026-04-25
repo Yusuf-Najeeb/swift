@@ -48,8 +48,10 @@ Following a 12-step plan — current state:
       `POST /api/generate/stream`. Copy `frontend/.env.local.example`
       to `frontend/.env.local` and set `NEXT_PUBLIC_API_URL` if the
       API is not on `http://127.0.0.1:8000`.
-- [ ] Step 9 — `file_manager.py` for article storage
-- [ ] Step 10 — Dockerize backend and frontend
+- [x] **Step 9** — `file_manager.py` for article storage (saved `.md` under
+      `backend/articles/`, list + download API, UI list)
+- [x] **Step 10** — Docker: `backend/Dockerfile`, `frontend/Dockerfile`,
+      `docker-compose.yml` (named volume for `backend/articles/`)
 - [ ] Step 11 — Azure Container Apps + ACR
 - [ ] Step 12 — GitHub Actions CI/CD
 
@@ -71,13 +73,10 @@ cp .env.example .env
 # 2. Install deps (creates .venv and uv.lock-pinned packages)
 uv sync
 
-# 3. Run the tests
-uv run pytest
-
-# 4. Start the API (from the project root)
+# 3. Start the API (from the project root)
 uv run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 
-# 5. In another terminal: Next.js (from the project root)
+# 4. In another terminal: Next.js (from the project root)
 cd frontend
 cp .env.local.example .env.local   # optional; default API URL is http://127.0.0.1:8000
 npm install                         # first time only
@@ -86,10 +85,10 @@ npm run dev
 ```
 
 `uv sync` creates `.venv/` at the project root and installs every
-dependency declared in `pyproject.toml` — runtime + the `dev` group — at
-the versions pinned in `uv.lock`. Use `uv sync --no-dev` in production
-images to skip pytest and friends. Adding a new dep is
-`uv add some-pkg` (or `uv add --dev pytest-xdist` for dev-only).
+runtime dependency in `pyproject.toml` at the versions pinned in
+`uv.lock`. Add a new package with `uv add some-pkg`. The backend
+Dockerfile uses `uv sync --no-dev` (equivalent to `uv sync` until a dev
+group is added back to `pyproject.toml`).
 
 Then:
 
@@ -102,6 +101,30 @@ curl http://localhost:8000/config
 ```
 
 Interactive API docs: <http://localhost:8000/docs>
+
+### Docker (Step 10)
+
+Requires [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2.
+
+```bash
+cp .env.example .env
+# edit .env — at minimum set OPENROUTER_API_KEY
+
+docker compose up --build
+```
+
+- **UI:** <http://localhost:3000>
+- **API:** <http://localhost:8000> (e.g. `/docs`, `/health`), MCP (if enabled) at `/mcp`
+- **Saved articles** are stored in a Compose named volume (`articles_data` → `/app/backend/articles` in the backend container)
+
+The frontend image is built with `NEXT_PUBLIC_API_URL=http://backend:8000` so the Next.js BFF can reach the API on the Compose network. The first cold start may still wait on `uvx` / `npx` MCP helpers; the backend health check allows up to two minutes before the frontend starts.
+
+**Production hardening (recommended when the network is not just your laptop):**
+
+- Set **`SWIFT_API_BEARER_TOKEN`** to a long random string in the **root** `.env`. The same value must be in **`frontend/.env.local`** as `SWIFT_API_BEARER_TOKEN` so the Next BFF can call the API. When this is set, the pipeline, article file APIs, and `GET /config` require `Authorization: Bearer <token>`. **`GET /health` and `GET /` stay open** for probes.
+- Set **`SWIFT_MCP_SERVER_BEARER_TOKEN`** if you expose the mounted MCP HTTP surface; the server logs a warning on startup if MCP is enabled without it.
+- Put **rate limits** and **IP allow lists** at your reverse proxy or API gateway; this app does not replace those.
+- For a **new public origin** (e.g. `https://app.example.com`), add it to **`SWIFT_CORS_ORIGINS`**.
 
 **Why the API “hangs” after a request (first time):** the Writer and
 Evaluator start separate [`uvx mcp-server-fetch`](https://github.com/modelcontextprotocol/servers) subprocesses. On a **cold**
@@ -230,7 +253,6 @@ swift-writer/
 │   ├── mcp/              # FastMCP server (Step 6)
 │   ├── storage/          # File + blob storage (Step 9)
 │   ├── articles/         # Generated .md output (gitignored)
-│   ├── tests/            # pytest suite
 │   ├── config.py         # pydantic-settings Settings + get_settings()
 │   └── main.py           # FastAPI app factory + /health, /, /config
 ├── frontend/             # Next.js 15 — app/page.tsx, app/api/stream (BFF)
@@ -238,7 +260,7 @@ swift-writer/
 │   ├── components/      # ArticleForm, ArticlePreview, MermaidBlock
 │   └── lib/               # parseSse.ts, pipelineTypes.ts, pipelineStatus.ts
 ├── .env.example
-├── pyproject.toml        # deps, dev group, pytest config (managed by uv)
+├── pyproject.toml        # dependencies (managed by uv)
 ├── uv.lock               # pinned resolution — committed for reproducibility
 └── README.md
 ```

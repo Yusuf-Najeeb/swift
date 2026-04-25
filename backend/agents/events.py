@@ -47,6 +47,7 @@ from typing import Awaitable, Callable, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 from backend.agents.schemas import ArticleBrief, FinalArticle
+from backend.storage.schemas import SavedArticle
 
 
 def _utc_now() -> datetime:
@@ -140,6 +141,13 @@ class RunCompletedEvent(_BaseEvent):
 
     type: Literal["run.completed"] = "run.completed"
     article: FinalArticle
+    saved: Optional[SavedArticle] = Field(
+        None,
+        description=(
+            "Optional persistence metadata when the server saved the article "
+            "to local storage (Step 9)."
+        ),
+    )
     iterations: int = Field(
         ...,
         ge=1,

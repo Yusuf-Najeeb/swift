@@ -45,6 +45,9 @@ import logging
 from typing import AsyncIterator, Optional
 
 from fastapi import APIRouter, Depends
+from fastapi import HTTPException
+from fastapi.responses import FileResponse
+from pathlib import Path
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
@@ -56,10 +59,17 @@ from backend.agents.events import (
 )
 from backend.agents.schemas import ArticleBrief
 from backend.config import Settings, get_settings
+from backend.dependencies import require_api_bearer
+from backend.storage.file_manager import (
+    get_articles_dir,
+    list_saved_articles,
+    save_final_article,
+)
+from backend.storage.schemas import ArticleListItem
 
 log = logging.getLogger("swift.api.routes")
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_api_bearer)])
 
 
 class GenerateStreamRequest(BaseModel):
@@ -149,8 +159,17 @@ async def _pipeline_events(
                 image_placeholder_count=0,
             )
 
+        saved = save_final_article(
+            final,
+            brief=payload.brief,
+            approved=run.approved,
+            iterations=run.iterations,
+            settings=settings,
+        )
+
         return RunCompletedEvent(
             article=final,
+            saved=saved,
             iterations=run.iterations,
             approved=run.approved,
         )
@@ -255,4 +274,68 @@ async def generate_stream(
     )
 
 
-__all__ = ["GenerateStreamRequest", "generate_stream", "router"]
+class ArticleListResponse(BaseModel):
+    """Response for ``GET /api/articles`` — saved Markdown files (newest first)."""
+
+    articles: list[ArticleListItem] = Field(default_factory=list)
+
+
+@router.get(
+    "/api/articles",
+    tags=["articles"],
+    response_model=ArticleListResponse,
+    summary="List saved article Markdown files.",
+)
+async def list_articles(
+    settings: Settings = Depends(get_settings),
+) -> ArticleListResponse:
+    return ArticleListResponse(articles=list_saved_articles(settings))
+
+
+def _safe_article_filename(value: str) -> str:
+    # Prevent traversal ("/", "..") and reject empty names.
+    if not value or value.strip() != value:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    p = Path(value)
+    if p.name != value:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    if ".." in p.parts:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return value
+
+
+@router.get(
+    "/api/articles/{filename}",
+    tags=["articles"],
+    summary="Download a saved article Markdown file.",
+)
+async def get_article_markdown(
+    filename: str,
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
+    filename = _safe_article_filename(filename)
+    articles_dir = get_articles_dir(settings)
+    path = (articles_dir / filename).resolve()
+    try:
+        base = articles_dir.resolve()
+    except FileNotFoundError:
+        base = articles_dir
+
+    if base not in path.parents and path != base:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    return FileResponse(
+        path=str(path),
+        media_type="text/markdown; charset=utf-8",
+        filename=filename,
+    )
+
+
+__all__ = [
+    "ArticleListResponse",
+    "GenerateStreamRequest",
+    "generate_stream",
+    "router",
+]

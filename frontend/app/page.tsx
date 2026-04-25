@@ -6,6 +6,7 @@ import {
   type FormState,
 } from "@/components/ArticleForm";
 import { ArticlePreview } from "@/components/ArticlePreview";
+import { SavedArticlesList } from "@/components/SavedArticlesList";
 import { describePipelineEvent } from "@/lib/pipelineStatus";
 import { streamSseJson } from "@/lib/parseSse";
 import type { FinalArticle, PipelineEventData } from "@/lib/pipelineTypes";
@@ -41,6 +42,7 @@ export default function Home() {
   const [status, setStatus] = useState<RunStatus>("idle");
   const [statusLine, setStatusLine] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [savedListToken, setSavedListToken] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   const run = useCallback(async () => {
@@ -68,6 +70,7 @@ export default function Home() {
         if (isRunCompleted(ev)) {
           setArticle(ev.article);
           setStatus("done");
+          setSavedListToken((n) => n + 1);
         }
         if (isRunFailed(ev)) {
           setErrorMessage(`${ev.error_type}: ${ev.error}`);
@@ -123,6 +126,10 @@ export default function Home() {
               Cancel
             </button>
           )}
+          <SavedArticlesList
+            refreshToken={savedListToken}
+            onLoadArticle={setArticle}
+          />
         </section>
         <section>
           {errorMessage && (

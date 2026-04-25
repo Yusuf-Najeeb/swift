@@ -4,10 +4,8 @@
 # Swift is an *application*, not a library, so we don't
 # declare a [build-system] and we tell uv not to try to
 # package it (``tool.uv.package = false``). Runtime deps
-# live under ``[project.dependencies]``; dev tools live in
-# the PEP 735 ``[dependency-groups]`` table so ``uv sync``
-# installs them by default and CI/Docker can opt out with
-# ``uv sync --no-dev``.
+# live under ``[project.dependencies]`` (add optional
+# ``[dependency-groups]`` in pyproject if you reintroduce dev tools).
 # ──────────────────────────────────────────────────────────
 
 [project]
@@ -32,19 +30,6 @@ dependencies = [
     "fastmcp>=0.4",
 ]
 
-[dependency-groups]
-dev = [
-    "pytest>=8.2",
-    "pytest-asyncio>=0.23",
-]
-
 [tool.uv]
 # Swift is an application; don't try to build/install it as a wheel.
 package = false
-
-[tool.pytest.ini_options]
-testpaths = ["backend/tests"]
-pythonpath = ["."]
-addopts = "-ra --strict-markers"
-asyncio_mode = "auto"
-filterwarnings = ["ignore::DeprecationWarning"]

@@ -1,3 +1,4 @@
+import { backendAuthHeaders } from "@/lib/serverBackendAuth";
 import { NextRequest } from "next/server";
 
 /**
@@ -20,7 +21,10 @@ export async function POST(request: NextRequest) {
     `${backendBase()}/api/generate/stream`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...backendAuthHeaders(),
+      },
       body,
     }
   );

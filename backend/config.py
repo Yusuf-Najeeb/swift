@@ -126,6 +126,22 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("SWIFT_ARTICLES_DIR", "articles_dir"),
     )
 
+    # ─── API surface (Step 7 / production) ───────────────────
+    # When set, `POST /api/generate/stream`, `GET /api/articles`, `GET
+    # /api/articles/…`, and `GET /config` require `Authorization: Bearer
+    # <token>`. /health and ``GET /`` stay open for load balancers.
+    api_bearer_token: Optional[str] = Field(
+        None,
+        validation_alias=AliasChoices(
+            "SWIFT_API_BEARER_TOKEN",
+            "api_bearer_token",
+        ),
+        description=(
+            "If set, protects the article pipeline, article file APIs, and "
+            "GET /config. Omit for local-only dev."
+        ),
+    )
+
     cors_origins: Annotated[List[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"],
         validation_alias=AliasChoices("SWIFT_CORS_ORIGINS", "cors_origins"),

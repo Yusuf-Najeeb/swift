@@ -34,6 +34,12 @@ export interface FinalArticle {
   image_placeholder_count: number;
 }
 
+export interface SavedArticle {
+  filename: string;
+  relative_path: string;
+  url_path: string;
+}
+
 export interface BaseEvent {
   type: string;
   timestamp: string;
@@ -82,6 +88,7 @@ export interface ImagesCompletedEvent extends BaseEvent {
 export interface RunCompletedEvent extends BaseEvent {
   type: "run.completed";
   article: FinalArticle;
+  saved?: SavedArticle | null;
   iterations: number;
   approved: boolean;
 }

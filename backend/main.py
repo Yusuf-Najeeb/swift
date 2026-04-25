@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.agents.providers import configure_openrouter
 from backend.api import router as api_router
 from backend.config import Settings, get_settings
+from backend.dependencies import require_api_bearer
 from backend.mcp import MCPBearerAuthMiddleware, get_mcp_server
+
+log = logging.getLogger("swift.main")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -38,6 +42,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # but belt-and-braces) already has a configured client.
         configure_openrouter()
         if mcp_asgi is not None:
+            if not settings.mcp_server_bearer_token:
+                log.warning(
+                    "MCP HTTP is mounted without SWIFT_MCP_SERVER_BEARER_TOKEN — "
+                    "unsafe on a public network; set a token in production"
+                )
             async with mcp_asgi.router.lifespan_context(app):
                 yield
         else:
@@ -82,7 +91,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok", "service": settings.app_name}
 
-    @app.get("/config", tags=["meta"])
+    @app.get(
+        "/config",
+        tags=["meta"],
+        dependencies=[Depends(require_api_bearer)],
+    )
     async def config_snapshot() -> dict[str, str | bool | float]:
         """Expose non-secret configuration for quick diagnostics."""
 
