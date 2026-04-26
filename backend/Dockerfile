@@ -1,23 +1,27 @@
-# syntax=docker/dockerfile:1
-# Build from the repository root:
-#   docker build -f backend/Dockerfile .
-
 FROM python:3.12-slim-bookworm
+
+# Must be *after* FROM to be available in RUN
+ARG WITH_NODE=1
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 ENV UV_LINK_MODE=copy
 ENV UV_COMPILE_BYTECODE=1
-ENV UV_NO_CACHE=1
 
-# Node: Evaluator can spawn `npx` for optional MCP (e.g. Serper). `uv`/`uvx`
-# is installed above for mcp-server-fetch and other stdio tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-    nodejs \
-    npm \
   && rm -rf /var/lib/apt/lists/*
+
+# Second layer only if WITH_NODE=1 (Evaluator may spawn `npx` e.g. Serper).
+RUN if [ "$WITH_NODE" = "1" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+        nodejs \
+        npm \
+      && rm -rf /var/lib/apt/lists/*; \
+    else \
+      echo "WITH_NODE=0: skipping nodejs/npm; use --build-arg WITH_NODE=1 for npx (Serper MCP)"; \
+    fi
 
 WORKDIR /app
 

@@ -15,3 +15,6 @@ frontend/.next
 frontend/out
 *.log
 **/.DS_Store
+
+# Generated saves live here at runtime (Compose volume / ACA); never bake old .md into images
+backend/articles/

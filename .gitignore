@@ -33,3 +33,10 @@ backend/articles/*
 
 # Article Writer Setup
 article-writer-setup.txt
+
+# Terraform (keep example tfvars committed)
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+!terraform/terraform.tfvars.example

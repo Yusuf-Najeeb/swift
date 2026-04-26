@@ -52,7 +52,9 @@ Following a 12-step plan — current state:
       `backend/articles/`, list + download API, UI list)
 - [x] **Step 10** — Docker: `backend/Dockerfile`, `frontend/Dockerfile`,
       `docker-compose.yml` (named volume for `backend/articles/`)
-- [ ] Step 11 — Azure Container Apps + ACR
+- [x] **Step 11** — Azure baseline in `terraform/` (ACR, Log Analytics, Container
+      Apps Environment, backend + optional frontend app). See
+      `terraform/README.md` for required inputs and the two-step image workflow.
 - [ ] Step 12 — GitHub Actions CI/CD
 
 ## Prerequisites
@@ -112,6 +114,8 @@ cp .env.example .env
 
 docker compose up --build
 ```
+
+The backend Dockerfile **installs Node/npm by default** (`WITH_NODE=1`) so the Evaluator can use **`npx` in-container** (e.g. Serper with `SERPER_API_KEY`). That `apt` layer is slow on poor networks. For a **slimmer/faster** image, build with `WITH_NODE=0` or set `services.backend.build.args.WITH_NODE` to `"0"` in `docker-compose.yml`.
 
 - **UI:** <http://localhost:3000>
 - **API:** <http://localhost:8000> (e.g. `/docs`, `/health`), MCP (if enabled) at `/mcp`

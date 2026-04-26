@@ -9,6 +9,9 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        # 1 = production (nodejs/npm for `npx` / Serper). Use 0 for a slimmer, faster build.
+        WITH_NODE: "1"
     ports:
       - "8000:8000"
     env_file:
