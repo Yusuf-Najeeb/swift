@@ -71,11 +71,18 @@ jobs:
       - name: Resolve ACR and image tag
         id: meta
         env:
-          ACR_NAME_RAW: ${{ vars.ACR_NAME }}
+          # Use repository *variable* ACR_NAME (Settings → Actions → Variables), or
+          # repository *secret* ACR_NAME if you put it there by mistake.
+          ACR_NAME_VAR: ${{ vars.ACR_NAME }}
+          ACR_NAME_SECRET: ${{ secrets.ACR_NAME }}
         run: |
           set -euo pipefail
-          # GitHub var must be the *short* name (e.g. myregistry), 5–50 alnum chars only.
-          # If you pasted myregistry.azurecr.io or a URL, we normalize to the short name.
+          if [ -n "$ACR_NAME_VAR" ]; then
+            ACR_NAME_RAW="$ACR_NAME_VAR"
+          else
+            ACR_NAME_RAW="$ACR_NAME_SECRET"
+          fi
+          # Short name (e.g. myregistry), 5–50 alnum chars. *.azurecr.io is normalized.
           r=$(printf '%s' "$ACR_NAME_RAW" | tr -d ' \r\n' | tr '[:upper:]' '[:lower:]')
           r="${r#https://}"
           r="${r#http://}"
@@ -85,9 +92,12 @@ jobs:
           fi
           ACR_NAME="$r"
           if ! [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]; then
-            echo "ACR_NAME (Actions variable) must be the registry short name: 5–50 letters/digits only." >&2
-            echo "Example: myregistry  —  not  myregistry.azurecr.io" >&2
-            echo "After normalization, got: '${ACR_NAME}'  (from: '${{ vars.ACR_NAME }}')" >&2
+            echo "ACR_NAME is missing or invalid. Set the ACR *short* name in this repository:" >&2
+            echo "  Settings → Secrets and variables → Actions → Variables: name ACR_NAME, value e.g. swiftwriteracr90976535362" >&2
+            echo "  (Or use a secret named ACR_NAME with the same value.)" >&2
+            echo "  Use 5–50 letters/digits only — not yourregistry.azurecr.io" >&2
+            echo "  For fork/cross-repo runs, add the variable on the repo that owns the workflow (often the upstream), not only on a fork." >&2
+            echo "After normalization, value was empty or not alphanumeric — check for a typo in the variable name (must be exactly ACR_NAME)." >&2
             exit 1
           fi
           ACR_SERVER="${ACR_NAME}.azurecr.io"
