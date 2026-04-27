@@ -68,6 +68,29 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Resolve resource group
+        id: rg
+        env:
+          RG_VAR: ${{ vars.AZURE_RESOURCE_GROUP }}
+          RG_SECRET: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        run: |
+          set -euo pipefail
+          if [ -n "$RG_VAR" ]; then
+            RG="$RG_VAR"
+          else
+            RG="$RG_SECRET"
+          fi
+          RG=$(printf '%s' "$RG" | tr -d ' \r\n')
+          if [ -z "$RG" ]; then
+            echo "AZURE_RESOURCE_GROUP is empty. In this repository, add:" >&2
+            echo "  Settings → Actions → Variables: name AZURE_RESOURCE_GROUP, value = your Azure resource group" >&2
+            echo "  (e.g. rg-swift-writer — same as resource_group_name in terraform.tfvars.)" >&2
+            echo "  You can use a variable or a secret with that exact name." >&2
+            exit 1
+          fi
+          echo "resource_group=$RG" >> "$GITHUB_OUTPUT"
+          echo "Using resource group: $RG"
+
       - name: Resolve ACR and image tag
         id: meta
         env:
@@ -126,7 +149,7 @@ jobs:
         run: |
           set -euo pipefail
           az containerapp update \
-            -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -g "${{ steps.rg.outputs.resource_group }}" \
             -n "${{ env.BACKEND_APP_NAME }}" \
             --image "${{ steps.meta.outputs.acr_server }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
 
@@ -134,7 +157,7 @@ jobs:
         id: be
         run: |
           FQDN="$(az containerapp show \
-            -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -g "${{ steps.rg.outputs.resource_group }}" \
             -n "${{ env.BACKEND_APP_NAME }}" \
             -o tsv --query "properties.configuration.ingress.fqdn" || true)"
           if [ -z "$FQDN" ] || [ "$FQDN" = "null" ]; then
@@ -156,11 +179,11 @@ jobs:
       - name: Update frontend Container App (if it exists)
         run: |
           set -euo pipefail
-          if ! az containerapp show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ env.FRONTEND_APP_NAME }}" -o table &>/dev/null; then
+          if ! az containerapp show -g "${{ steps.rg.outputs.resource_group }}" -n "${{ env.FRONTEND_APP_NAME }}" -o table &>/dev/null; then
             echo "No Container App named ${{ env.FRONTEND_APP_NAME }} — skip (set frontend_image in Terraform and apply first)."
             exit 0
           fi
           az containerapp update \
-            -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -g "${{ steps.rg.outputs.resource_group }}" \
             -n "${{ env.FRONTEND_APP_NAME }}" \
             --image "${{ steps.meta.outputs.acr_server }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
