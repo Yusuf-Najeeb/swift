@@ -1,13 +1,9 @@
+import { serverBackendBaseUrl } from "@/lib/backendBaseUrl";
 import { backendAuthHeaders } from "@/lib/serverBackendAuth";
 import { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function backendBase(): string {
-  const raw = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
-  return raw.replace(/\/$/, "");
-}
 
 export async function GET(
   _request: NextRequest,
@@ -18,7 +14,7 @@ export async function GET(
     return new Response("Missing filename", { status: 400 });
   }
   const safe = encodeURIComponent(filename);
-  const upstream = await fetch(`${backendBase()}/api/articles/${safe}`, {
+  const upstream = await fetch(`${serverBackendBaseUrl()}/api/articles/${safe}`, {
     method: "GET",
     headers: { ...backendAuthHeaders() },
     cache: "no-store",

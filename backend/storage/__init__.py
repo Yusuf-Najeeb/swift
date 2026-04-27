@@ -1,7 +1,7 @@
 """Storage utilities for Swift Writer (Step 9).
 
-Currently this package provides a simple local-disk article store.
-Future steps can add Azure Blob persistence behind the same interface.
+Local disk by default; set ``AZURE_STORAGE_CONNECTION_STRING`` to use
+Azure Blob (same list/save/download API).
 """
 
 from backend.storage.schemas import ArticleListItem, SavedArticle

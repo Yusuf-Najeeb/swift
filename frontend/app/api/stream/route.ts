@@ -1,3 +1,4 @@
+import { serverBackendBaseUrl } from "@/lib/backendBaseUrl";
 import { backendAuthHeaders } from "@/lib/serverBackendAuth";
 import { NextRequest } from "next/server";
 
@@ -8,17 +9,11 @@ import { NextRequest } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function backendBase(): string {
-  const raw =
-    process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
-  return raw.replace(/\/$/, "");
-}
-
 export async function POST(request: NextRequest) {
   const body = await request.text();
 
   const upstream = await fetch(
-    `${backendBase()}/api/generate/stream`,
+    `${serverBackendBaseUrl()}/api/generate/stream`,
     {
       method: "POST",
       headers: {

@@ -5,7 +5,6 @@ Writes the final article Markdown to disk under `backend/<articles_dir>/`.
 
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,6 +12,7 @@ from slugify import slugify
 
 from backend.agents.schemas import ArticleBrief, FinalArticle
 from backend.config import Settings
+from backend.storage.article_titles import title_from_first_bytes
 from backend.storage.schemas import ArticleListItem, SavedArticle
 
 
@@ -30,34 +30,18 @@ def get_articles_dir(settings: Settings) -> Path:
     return _backend_root() / configured
 
 
-_FRONT_MATTER = re.compile(
-    r"^---\r?\n(?P<body>.*?)\r?\n---\r?\n",
-    re.DOTALL,
-)
-
-
-def _unquote_simple_yaml_string(raw: str) -> str:
-    t = raw.strip()
-    if len(t) >= 2 and t[0] == t[-1] == '"':
-        return t[1:-1].replace(r"\"", '"')
-    return t
-
-
-def _title_from_first_bytes(content: str) -> str | None:
-    """Parse ``title:`` from Swift's YAML front matter, if present."""
-
-    m = _FRONT_MATTER.match(content)
-    if not m:
-        return None
-    for line in m.group("body").splitlines():
-        line = line.rstrip()
-        if line.lower().startswith("title:"):
-            return _unquote_simple_yaml_string(line.split(":", 1)[1])
-    return None
+def article_storage_is_azure(settings: Settings) -> bool:
+    """True when ``AZURE_STORAGE_CONNECTION_STRING`` is set (use Blob for articles)."""
+    return bool((getattr(settings, "azure_storage_connection_string", None) or "").strip())
 
 
 def list_saved_articles(settings: Settings) -> list[ArticleListItem]:
     """Return all ``*.md`` in the articles directory, newest mtime first."""
+
+    if article_storage_is_azure(settings):
+        from backend.storage import blob_articles
+
+        return blob_articles.list_saved_articles_azure(settings)
 
     articles_dir = get_articles_dir(settings)
     if not articles_dir.is_dir():
@@ -75,7 +59,7 @@ def list_saved_articles(settings: Settings) -> list[ArticleListItem]:
             peek = path.read_text(encoding="utf-8", errors="replace")[:16_384]
         except OSError:
             peek = ""
-        title = _title_from_first_bytes(peek) or path.stem
+        title = title_from_first_bytes(peek) or path.stem
         mtime = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc)
         filename = path.name
         out.append(
@@ -137,32 +121,42 @@ def save_final_article(
 ) -> SavedArticle:
     """Persist an article and return its metadata."""
 
-    articles_dir = get_articles_dir(settings)
-    articles_dir.mkdir(parents=True, exist_ok=True)
-
+    markdown = _render_markdown_document(
+        article, brief=brief, approved=approved, iterations=iterations
+    )
     date = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
     slug = slugify(article.title)[:80] or "article"
     filename = f"{date}-{slug}.md"
-    path = articles_dir / filename
 
-    # Avoid accidental overwrite if two runs share the same title+date.
+    if article_storage_is_azure(settings):
+        from backend.storage import blob_articles
+
+        initial = filename
+        filename = blob_articles.ensure_unique_blob_name(
+            settings, date=date, slug=slug, initial=initial
+        )
+        rel = blob_articles.save_final_article_azure(
+            filename, markdown, settings
+        )
+        return SavedArticle(
+            filename=filename,
+            relative_path=rel,
+            url_path=f"/api/articles/{filename}",
+        )
+
+    articles_dir = get_articles_dir(settings)
+    articles_dir.mkdir(parents=True, exist_ok=True)
+    path = articles_dir / filename
     if path.exists():
         suffix = datetime.now(tz=timezone.utc).strftime("%H%M%S")
         filename = f"{date}-{slug}-{suffix}.md"
         path = articles_dir / filename
-
-    markdown = _render_markdown_document(
-        article, brief=brief, approved=approved, iterations=iterations
-    )
     path.write_text(markdown, encoding="utf-8")
-
-    # Path relative to backend/ for easy debugging.
     backend_root = _backend_root()
     try:
         rel = str(path.relative_to(backend_root))
     except ValueError:
         rel = str(path)
-
     return SavedArticle(
         filename=filename,
         relative_path=rel,
@@ -170,5 +164,30 @@ def save_final_article(
     )
 
 
-__all__ = ["get_articles_dir", "list_saved_articles", "save_final_article"]
+def read_article_bytes(settings: Settings, filename: str) -> bytes:
+    """Load article body (local disk or Azure Blob)."""
+    if article_storage_is_azure(settings):
+        from backend.storage import blob_articles
+
+        return blob_articles.read_article_azure(settings, filename)
+    articles_dir = get_articles_dir(settings)
+    path = (articles_dir / filename).resolve()
+    try:
+        base = articles_dir.resolve()
+    except FileNotFoundError:
+        base = articles_dir
+    if base not in path.parents and path != base:
+        raise FileNotFoundError(filename)
+    if not path.is_file():
+        raise FileNotFoundError(filename)
+    return path.read_bytes()
+
+
+__all__ = [
+    "article_storage_is_azure",
+    "get_articles_dir",
+    "list_saved_articles",
+    "read_article_bytes",
+    "save_final_article",
+]
 

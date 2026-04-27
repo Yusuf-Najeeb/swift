@@ -46,7 +46,7 @@ from typing import AsyncIterator, Optional
 
 from fastapi import APIRouter, Depends
 from fastapi import HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pathlib import Path
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
@@ -61,8 +61,10 @@ from backend.agents.schemas import ArticleBrief
 from backend.config import Settings, get_settings
 from backend.dependencies import require_api_bearer
 from backend.storage.file_manager import (
+    article_storage_is_azure,
     get_articles_dir,
     list_saved_articles,
+    read_article_bytes,
     save_final_article,
 )
 from backend.storage.schemas import ArticleListItem
@@ -307,13 +309,26 @@ def _safe_article_filename(value: str) -> str:
 @router.get(
     "/api/articles/{filename}",
     tags=["articles"],
+    response_model=None,
     summary="Download a saved article Markdown file.",
 )
 async def get_article_markdown(
     filename: str,
     settings: Settings = Depends(get_settings),
-) -> FileResponse:
+) -> FileResponse | Response:
     filename = _safe_article_filename(filename)
+    if article_storage_is_azure(settings):
+        try:
+            body = read_article_bytes(settings, filename)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Article not found")
+        return Response(
+            content=body,
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": f'inline; filename="{filename}"',
+            },
+        )
     articles_dir = get_articles_dir(settings)
     path = (articles_dir / filename).resolve()
     try:

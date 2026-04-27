@@ -9,7 +9,7 @@ fills in illustrations via [Pollinations.ai](https://pollinations.ai).
 - **Streaming**: Server-Sent Events
 - **MCP**: FastMCP server exposing Swift's tools to MCP clients
 - **Frontend**: Next.js 15 (App Router) + Tailwind; live SSE via `app/api/stream` BFF
-- **Storage**: local `backend/articles/` folder *(Azure Blob backup later)*
+- **Storage**: local `backend/articles/` in dev; **Azure Blob** when `AZURE_STORAGE_CONNECTION_STRING` is set (Terraform provisions the account + container)
 
 ## Build status
 

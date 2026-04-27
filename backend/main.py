@@ -104,6 +104,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "writer_model": settings.writer_model,
             "evaluator_model": settings.evaluator_model,
             "image_agent_model": settings.image_agent_model,
+            "article_storage": (
+                "azure_blob"
+                if (settings.azure_storage_connection_string or "").strip()
+                else "local"
+            ),
             "openrouter_base_url": settings.openrouter_base_url,
             "mcp_server_enabled": settings.mcp_server_enabled,
             "mcp_server_mount_path": settings.mcp_server_mount_path,

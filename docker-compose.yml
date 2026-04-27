@@ -39,6 +39,8 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # BFF read order: SWIFT_BACKEND_URL, then NEXT_PUBLIC; runtime first avoids stale baked build args.
+      SWIFT_BACKEND_URL: http://backend:8000
       NEXT_PUBLIC_API_URL: http://backend:8000
       # Injected at compose parse time from project .env; do not use
       # env_file here — avoid giving the Next container the OpenRouter key.

@@ -186,4 +186,5 @@ jobs:
           az containerapp update \
             -g "${{ steps.rg.outputs.resource_group }}" \
             -n "${{ env.FRONTEND_APP_NAME }}" \
-            --image "${{ steps.meta.outputs.acr_server }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
+            --image "${{ steps.meta.outputs.acr_server }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.meta.outputs.tag }}" \
+            --set-env-vars "SWIFT_BACKEND_URL=${{ steps.be.outputs.url }} NEXT_PUBLIC_API_URL=${{ steps.be.outputs.url }}"

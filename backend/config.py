@@ -126,6 +126,26 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("SWIFT_ARTICLES_DIR", "articles_dir"),
     )
 
+    azure_storage_connection_string: Optional[str] = Field(
+        None,
+        validation_alias=AliasChoices(
+            "AZURE_STORAGE_CONNECTION_STRING",
+            "azure_storage_connection_string",
+        ),
+        description=(
+            "If set, saved articles use Azure Blob; otherwise the local "
+            "``articles_dir`` on disk (Compose / dev)."
+        ),
+    )
+    azure_storage_container_name: str = Field(
+        "articles",
+        validation_alias=AliasChoices(
+            "AZURE_STORAGE_CONTAINER_NAME",
+            "azure_storage_container_name",
+        ),
+        description="Blob container name when using ``azure_storage_connection_string``.",
+    )
+
     # ─── API surface (Step 7 / production) ───────────────────
     # When set, `POST /api/generate/stream`, `GET /api/articles`, `GET
     # /api/articles/…`, and `GET /config` require `Authorization: Bearer
