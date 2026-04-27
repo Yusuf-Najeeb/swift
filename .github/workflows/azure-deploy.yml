@@ -22,6 +22,10 @@ jobs:
   verify:
     name: Verify (build / import checks)
     runs-on: ubuntu-latest
+    env:
+      # Pydantic requires a value. Prefer repo secret `OPENROUTER_API_KEY` (same as production)
+      # so CI loads Settings with a real key; if unset, placeholder still satisfies import (no API calls here).
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY != '' && secrets.OPENROUTER_API_KEY || 'ci-placeholder-not-used' }}
     steps:
       - uses: actions/checkout@v4
 
