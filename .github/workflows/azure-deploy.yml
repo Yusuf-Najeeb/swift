@@ -1,0 +1,132 @@
+name: Azure — build and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-azure-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BACKEND_APP_NAME: swift-backend
+  FRONTEND_APP_NAME: swift-frontend
+  # Must match the image repository names you use in Terraform (path after ACR host).
+  BACKEND_IMAGE_NAME: swift-backend
+  FRONTEND_IMAGE_NAME: swift-frontend
+
+jobs:
+  verify:
+    name: Verify (build / import checks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Python — sync and import app
+        run: |
+          uv sync
+          uv run python -c "import backend.main; print('backend import ok')"
+
+      - name: Frontend — install and production build
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: next build
+        working-directory: frontend
+        run: |
+          npm ci
+          npx next build
+        env:
+          # Placeholder; real bake uses backend HTTPS URL in deploy job.
+          NEXT_PUBLIC_API_URL: "http://127.0.0.1:8000"
+
+  deploy:
+    name: Build, push, update Container Apps
+    needs: verify
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Resolve ACR and image tag
+        id: meta
+        run: |
+          ACR_SERVER="${{ vars.ACR_NAME }}.azurecr.io"
+          TAG="${GITHUB_SHA:0:12}"
+          echo "acr_server=$ACR_SERVER" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Using $ACR_SERVER and tag $TAG"
+
+      - name: Log in to ACR
+        run: az acr login -n "${{ vars.ACR_NAME }}"
+
+      - name: Build and push backend
+        env:
+          BACKEND_WITH_NODE: ${{ vars.BACKEND_WITH_NODE }}
+        run: |
+          set -euo pipefail
+          W="${BACKEND_WITH_NODE:-0}"
+          docker build -f backend/Dockerfile \
+            --build-arg "WITH_NODE=${W}" \
+            -t "${{ steps.meta.outputs.acr_server }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.meta.outputs.tag }}" \
+            .
+          docker push "${{ steps.meta.outputs.acr_server }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
+
+      - name: Update backend Container App
+        run: |
+          set -euo pipefail
+          az containerapp update \
+            -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -n "${{ env.BACKEND_APP_NAME }}" \
+            --image "${{ steps.meta.outputs.acr_server }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
+
+      - name: Public backend URL for Next.js
+        id: be
+        run: |
+          FQDN="$(az containerapp show \
+            -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -n "${{ env.BACKEND_APP_NAME }}" \
+            -o tsv --query "properties.configuration.ingress.fqdn" || true)"
+          if [ -z "$FQDN" ] || [ "$FQDN" = "null" ]; then
+            echo "Could not read backend FQDN (is ingress external on the backend app?)" >&2
+            exit 1
+          fi
+          URL="https://${FQDN}"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "BACKEND_URL=$URL"
+
+      - name: Build and push frontend
+        run: |
+          set -euo pipefail
+          docker build -f frontend/Dockerfile frontend \
+            --build-arg "NEXT_PUBLIC_API_URL=${{ steps.be.outputs.url }}" \
+            -t "${{ steps.meta.outputs.acr_server }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
+          docker push "${{ steps.meta.outputs.acr_server }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
+
+      - name: Update frontend Container App (if it exists)
+        run: |
+          set -euo pipefail
+          if ! az containerapp show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ env.FRONTEND_APP_NAME }}" -o table &>/dev/null; then
+            echo "No Container App named ${{ env.FRONTEND_APP_NAME }} — skip (set frontend_image in Terraform and apply first)."
+            exit 0
+          fi
+          az containerapp update \
+            -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -n "${{ env.FRONTEND_APP_NAME }}" \
+            --image "${{ steps.meta.outputs.acr_server }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
