@@ -55,6 +55,28 @@ variable "frontend_image" {
   description = "Full container image for frontend. Build with NEXT_PUBLIC_API_URL pointing at backend HTTPS URL (see README)."
 }
 
+variable "storage_account_name" {
+  type        = string
+  description = "Globally unique storage account for article Blobs (3-24 chars, lowercase letters and numbers only)."
+
+  validation {
+    condition     = can(regex("^[a-z0-9]{3,24}$", var.storage_account_name))
+    error_message = "storage_account_name must be 3-24 lowercase letters and numbers."
+  }
+}
+
+variable "storage_replication_type" {
+  type        = string
+  description = "LRS is typical; use GRS/ZRS for higher durability."
+  default     = "LRS"
+}
+
+variable "articles_blob_container_name" {
+  type        = string
+  description = "Private blob container for saved .md files; same as app env AZURE_STORAGE_CONTAINER_NAME."
+  default     = "articles"
+}
+
 variable "openrouter_api_key" {
   type        = string
   description = "OpenRouter API key (stored as an ACA secret, not in state as plain text if you use TF_VAR_)."

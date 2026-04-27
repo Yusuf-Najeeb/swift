@@ -3,6 +3,16 @@ output "resource_group_name" {
   description = "Resource group containing Swift infrastructure."
 }
 
+output "article_storage_account_name" {
+  value       = azurerm_storage_account.articles.name
+  description = "Storage account (Blob) for saved article .md files."
+}
+
+output "article_blob_container_name" {
+  value       = var.articles_blob_container_name
+  description = "Blob container name injected into the backend as AZURE_STORAGE_CONTAINER_NAME."
+}
+
 output "acr_login_server" {
   value       = azurerm_container_registry.swift.login_server
   description = "Login server for docker push, e.g. myacr.azurecr.io"
@@ -14,7 +24,7 @@ output "backend_url" {
 }
 
 output "frontend_url" {
-  value       = length(azurerm_container_app.frontend) > 0 ? "https://${azurerm_container_app.frontend[0].latest_revision_fqdn}" : null
+  value       = length(azurerm_container_app.frontend) > 0 ? "https://${azurerm_container_app.frontend[0].ingress[0].fqdn}" : null
   description = "Public HTTPS URL for the Next.js app (null until frontend_image is set and applied)."
 }
 

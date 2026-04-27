@@ -9,6 +9,9 @@ resource_group_name = "rg-swift-writer-prod"
 # Globally unique, alphanumeric only, 5–50 chars
 acr_name = "swiftwriteracrYOURSUFFIX"
 
+# Globally unique, 3-24 chars, lowercase letters and numbers (Blob for article .md)
+storage_account_name = "swiftarticlesyoursuffix"
+
 container_app_environment_name = "swift-cae"
 backend_app_name               = "swift-backend"
 frontend_app_name              = "swift-frontend"

@@ -1,8 +1,13 @@
 locals {
   openrouter_secret_name   = "openrouter-api-key"
-  acr_password_secret_name = "acr-password"
+  acr_password_secret_name   = "acr-password"
+  storage_connection_secret_name = "azure-storage-connection"
 
-  backend_public_url = "https://${azurerm_container_app.backend.latest_revision_fqdn}"
+  # Use ingress FQDN (stable “application URL” in the portal). Do not use
+  # latest_revision_fqdn — it includes the revision suffix and changes on every
+  # deploy, which breaks same-apply updates to the frontend env and triggers
+  # “Provider produced inconsistent final plan”.
+  backend_public_url = "https://${azurerm_container_app.backend.ingress[0].fqdn}"
 }
 
 resource "azurerm_container_app" "backend" {
@@ -14,6 +19,11 @@ resource "azurerm_container_app" "backend" {
   secret {
     name  = local.openrouter_secret_name
     value = var.openrouter_api_key
+  }
+
+  secret {
+    name  = local.storage_connection_secret_name
+    value = azurerm_storage_account.articles.primary_connection_string
   }
 
   dynamic "secret" {
@@ -46,6 +56,16 @@ resource "azurerm_container_app" "backend" {
       env {
         name        = "OPENROUTER_API_KEY"
         secret_name = local.openrouter_secret_name
+      }
+
+      env {
+        name        = "AZURE_STORAGE_CONNECTION_STRING"
+        secret_name = local.storage_connection_secret_name
+      }
+
+      env {
+        name  = "AZURE_STORAGE_CONTAINER_NAME"
+        value = var.articles_blob_container_name
       }
 
       dynamic "env" {
@@ -107,6 +127,12 @@ resource "azurerm_container_app" "frontend" {
       image  = var.frontend_image
       cpu    = var.frontend_cpu
       memory = var.frontend_memory
+
+      # Runtime URL for BFF (server); takes precedence in code over baked NEXT_PUBLIC_*.
+      env {
+        name  = "SWIFT_BACKEND_URL"
+        value = local.backend_public_url
+      }
 
       env {
         name  = "NEXT_PUBLIC_API_URL"

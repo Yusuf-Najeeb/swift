@@ -1,8 +1,8 @@
 # Swift Writer — Azure (Terraform)
 
-Creates a **resource group**, **Azure Container Registry**, **Log Analytics**, **Container Apps Environment**, and:
+Creates a **resource group**, **Azure Container Registry**, **Storage account** (Blob for saved articles), **Log Analytics**, **Container Apps Environment**, and:
 
-1. **Backend** Container App (FastAPI on port 8000)
+1. **Backend** Container App (FastAPI on port 8000) — receives `AZURE_STORAGE_*` so saved `.md` files go to Blob instead of ephemeral disk
 2. **Frontend** Container App (Next.js on port 3000) — only if `frontend_image` is non-empty (two-step deploy; see below)
 
 ## What you need before running Terraform
@@ -15,6 +15,7 @@ Creates a **resource group**, **Azure Container Registry**, **Log Analytics**, *
 | **Terraform ≥ 1.5** | [Install Terraform](https://developer.hashicorp.com/terraform/install) |
 | **Chosen Azure region** | e.g. `eastus` — set `location` |
 | **Globally unique ACR name** | Letters and numbers only, 5–50 chars (`acr_name`) |
+| **Globally unique storage account name** | 3–24 chars, letters and numbers only (`storage_account_name`) — holds the `articles` Blob container |
 | **Names for RG, Container Apps Environment, and both apps** | Must follow [ACA naming rules](https://learn.microsoft.com/azure/container-apps/overview) (app names: lowercase, alphanumeric, hyphens; max length applies) |
 | **OpenRouter API key** | Pass as `TF_VAR_openrouter_api_key` or in `terraform.tfvars` (sensitive) |
 | **Docker images in ACR** | Build and `docker push` **backend** first; see workflow below |
