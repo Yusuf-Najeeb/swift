@@ -70,15 +70,35 @@ jobs:
 
       - name: Resolve ACR and image tag
         id: meta
+        env:
+          ACR_NAME_RAW: ${{ vars.ACR_NAME }}
         run: |
-          ACR_SERVER="${{ vars.ACR_NAME }}.azurecr.io"
+          set -euo pipefail
+          # GitHub var must be the *short* name (e.g. myregistry), 5–50 alnum chars only.
+          # If you pasted myregistry.azurecr.io or a URL, we normalize to the short name.
+          r=$(printf '%s' "$ACR_NAME_RAW" | tr -d ' \r\n' | tr '[:upper:]' '[:lower:]')
+          r="${r#https://}"
+          r="${r#http://}"
+          r="${r%%/*}"
+          if [[ "$r" == *".azurecr.io"* ]]; then
+            r="${r%%.azurecr.io*}"
+          fi
+          ACR_NAME="$r"
+          if ! [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]; then
+            echo "ACR_NAME (Actions variable) must be the registry short name: 5–50 letters/digits only." >&2
+            echo "Example: myregistry  —  not  myregistry.azurecr.io" >&2
+            echo "After normalization, got: '${ACR_NAME}'  (from: '${{ vars.ACR_NAME }}')" >&2
+            exit 1
+          fi
+          ACR_SERVER="${ACR_NAME}.azurecr.io"
           TAG="${GITHUB_SHA:0:12}"
+          echo "acr_name=$ACR_NAME" >> "$GITHUB_OUTPUT"
           echo "acr_server=$ACR_SERVER" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Using $ACR_SERVER and tag $TAG"
+          echo "Using registry $ACR_NAME -> $ACR_SERVER  tag=$TAG"
 
       - name: Log in to ACR
-        run: az acr login -n "${{ vars.ACR_NAME }}"
+        run: az acr login -n "${{ steps.meta.outputs.acr_name }}"
 
       - name: Build and push backend
         env:
