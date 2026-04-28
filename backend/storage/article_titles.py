@@ -1,4 +1,3 @@
-"""Parse title from saved article Markdown (YAML front matter)."""
 
 from __future__ import annotations
 
@@ -18,7 +17,6 @@ def _unquote_simple_yaml_string(raw: str) -> str:
 
 
 def title_from_first_bytes(content: str) -> str | None:
-    """Parse ``title:`` from Swift's YAML front matter, if present."""
     m = _FRONT_MATTER.match(content)
     if not m:
         return None

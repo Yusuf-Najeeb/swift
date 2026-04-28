@@ -1,4 +1,3 @@
-"""Azure Blob storage for article Markdown (production persistence)."""
 
 from __future__ import annotations
 
@@ -73,7 +72,6 @@ def list_saved_articles_azure(settings: Settings) -> list[ArticleListItem]:
 def ensure_unique_blob_name(
     settings: Settings, *, date: str, slug: str, initial: str
 ) -> str:
-    """Return ``date-slug.md`` or ``date-slug-HHMMSS.md`` if the first already exists."""
     container = _container(settings)
     if not _blob_exists(container, initial):
         return initial
@@ -86,7 +84,6 @@ def save_final_article_azure(
     markdown: str,
     settings: Settings,
 ) -> str:
-    """Return a pseudo-path for ``SavedArticle`` (no local file)."""
     container = _container(settings)
     container.upload_blob(name=filename, data=markdown.encode("utf-8"), overwrite=True)
     return f"azure://{settings.azure_storage_container_name}/{filename}"

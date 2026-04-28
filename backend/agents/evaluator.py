@@ -1,30 +1,3 @@
-"""Evaluator agent — grades Writer drafts and produces structured feedback.
-
-The Evaluator is a pure critic. Its only job is to judge a draft against
-the original brief and emit an
-:class:`~backend.agents.schemas.EvaluatorFeedback` object; it must never
-rewrite the article. The Orchestrator (Step 4) reads ``approved`` +
-``score`` and decides whether to loop the Writer through another
-revision pass (max 3 retries, threshold ``score >= 7``).
-
-Design notes:
-
-* **Capable model + MCP tools.** The Evaluator runs on a capable model
-  (default ``openai/gpt-4o``) and has its own MCP pipeline so it can
-  fact-check. By default it's attached to ``mcp-server-fetch`` — since
-  the Writer is instructed to cite URLs inline, fetch lets the
-  Evaluator click through to the source. Users can stack search MCPs
-  (Brave, Tavily, …) via ``SWIFT_EVALUATOR_MCP_SERVERS``.
-* **Evidence-gathering, not rewriting.** Tools are strictly for
-  verifying claims the draft makes. The verdict still goes in the
-  structured ``EvaluatorFeedback`` output — never rewrite, never quote
-  tool output back as article prose.
-* **Structured output via ``output_type=EvaluatorFeedback``.** The
-  Agents SDK enforces the JSON shape, so the Orchestrator never parses
-  free-form text. ``approved`` is coerced to ``score >= 7`` by a
-  validator on the schema (see ``EvaluatorFeedback`` docstring).
-"""
-
 from __future__ import annotations
 
 from typing import List, Optional
@@ -164,28 +137,7 @@ def build_evaluator_agent(
     *,
     mcp_servers: Optional[List[MCPServer]] = None,
 ) -> Agent:
-    """Construct the Evaluator ``Agent`` wired to OpenRouter.
-
-    Parameters
-    ----------
-    settings:
-        Optional pre-resolved :class:`Settings` (useful in tests). When
-        omitted, the cached :func:`get_settings` instance is used.
-    mcp_servers:
-        Optional override for the Evaluator's MCP server list. When
-        ``None``, the list is derived from ``settings`` via
-        :func:`build_evaluator_mcp_servers` (default: ``mcp-server-fetch``
-        plus any ``SWIFT_EVALUATOR_MCP_SERVERS`` extras). Pass an empty
-        list to disable MCP entirely — useful in unit tests where we
-        want to isolate the LLM.
-
-    Notes
-    -----
-    The Evaluator's MCP access is for fact-checking only; the prompt
-    strictly forbids using tool output as a replacement for rubric
-    judgment. See ``EVIDENCE GATHERING`` section of the instructions.
-    """
-
+ 
     settings = settings or get_settings()
 
     if mcp_servers is None:

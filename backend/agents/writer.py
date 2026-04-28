@@ -1,23 +1,3 @@
-"""Writer agent — produces Markdown article drafts with image placeholders.
-
-The Writer is the first specialist in Swift's pipeline. The Orchestrator
-hands it an :class:`~backend.agents.schemas.ArticleBrief` (and optionally
-an :class:`~backend.agents.schemas.EvaluatorFeedback` payload when revising)
-serialised as JSON, and expects back a
-:class:`~backend.agents.schemas.WriterOutput`.
-
-Design decisions worth knowing about:
-
-* We use ``output_type=WriterOutput`` so the Agents SDK enforces structured
-  decoding. No JSON parsing glue in the pipeline.
-* The prompt is centralised as ``WRITER_INSTRUCTIONS`` so tests can assert
-  on its contract ("enforce [IMAGE: ...] markers", "self-check pass",
-  etc.) without reaching out to the model.
-* The agent is built lazily via :func:`build_writer_agent` rather than at
-  import time — the Orchestrator step (Step 4) will want to build it once
-  per run and the FastAPI app will build it inside request handlers.
-"""
-
 from __future__ import annotations
 
 from typing import List, Optional
@@ -233,30 +213,7 @@ def build_writer_agent(
     *,
     mcp_servers: Optional[List[MCPServer]] = None,
 ) -> Agent:
-    """Construct the Writer ``Agent`` wired to OpenRouter.
-
-    Parameters
-    ----------
-    settings:
-        Optional pre-resolved :class:`Settings` (useful in tests). When
-        omitted, the cached :func:`get_settings` instance is used.
-    mcp_servers:
-        Explicit list of MCP servers to attach. Pass ``[]`` to opt out
-        of MCP entirely for this agent (useful in tests and in code
-        paths that don't want to pay tool-discovery latency). When
-        ``None`` (the default), the Writer receives the MCP servers
-        declared in ``settings`` via
-        :func:`backend.agents.mcp_clients.build_writer_mcp_servers`.
-
-    Notes
-    -----
-    The returned MCP servers are **not connected**. The caller must
-    call ``await server.connect()`` before running the agent and
-    ``await server.cleanup()`` after — or use the servers inside an
-    ``async with`` block. The Agents SDK's ``Runner`` does not manage
-    this lifecycle for you.
-    """
-
+    
     settings = settings or get_settings()
     if mcp_servers is None:
         mcp_servers = build_writer_mcp_servers(settings)

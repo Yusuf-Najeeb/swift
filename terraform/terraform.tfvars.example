@@ -1,28 +1,16 @@
-# Copy to terraform.tfvars (gitignored) and fill in.
-# Prefer exporting secrets instead of putting them in a file:
-#   export TF_VAR_openrouter_api_key="sk-or-..."
-#   export TF_VAR_swift_api_bearer_token="long-random-string"
 
 location            = "eastus"
 resource_group_name = "rg-swift-writer-prod"
 
-# Globally unique, alphanumeric only, 5–50 chars
 acr_name = "swiftwriteracrYOURSUFFIX"
 
-# Globally unique, 3-24 chars, lowercase letters and numbers (Blob for article .md)
 storage_account_name = "swiftarticlesyoursuffix"
 
 container_app_environment_name = "swift-cae"
 backend_app_name               = "swift-backend"
 frontend_app_name              = "swift-frontend"
 
-# After `az acr login` and docker push:
 backend_image = "swiftwriteracrYOURSUFFIX.azurecr.io/swift-backend:1.0.0"
 
-# Leave empty on first apply; after `terraform output backend_url`, build the
-# frontend image with NEXT_PUBLIC_API_URL=<backend_url>, push, then set and re-apply:
-# frontend_image = "swiftwriteracrYOURSUFFIX.azurecr.io/swift-frontend:1.0.0"
 frontend_image = ""
 
-# openrouter_api_key = "set-via-TF_VAR-or-here"
-# swift_api_bearer_token = "optional-same-as-app-SWIFT_API_BEARER_TOKEN"

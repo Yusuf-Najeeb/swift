@@ -1,8 +1,3 @@
-/**
- * TypeScript mirror of `backend/agents/events.py` + `ArticleBrief` / `FinalArticle`.
- * JSON from SSE `data:` lines matches these shapes (Pydantic `model_dump_json()`).
- */
-
 export type ArticleLength = "short" | "medium" | "long";
 
 export interface ArticleBrief {

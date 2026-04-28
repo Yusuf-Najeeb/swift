@@ -1,6 +1,5 @@
 import type { PipelineEventData } from "@/lib/pipelineTypes";
 
-/** Single-line status for the compact UI under the form. */
 export function describePipelineEvent(ev: PipelineEventData): string {
   switch (ev.type) {
     case "run.started":

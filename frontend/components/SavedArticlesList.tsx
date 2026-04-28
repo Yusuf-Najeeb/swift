@@ -13,7 +13,6 @@ export type SavedListItem = {
 };
 
 type Props = {
-  /** When this value changes, the list refetches. */
   refreshToken: number;
   onLoadArticle: (article: FinalArticle) => void;
 };

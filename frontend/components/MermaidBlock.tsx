@@ -21,10 +21,6 @@ function initMermaid() {
 
 type Props = { code: string };
 
-/**
- * Renders a single Mermaid code block as SVG in the client.
- * Falls back to a monospace pre on parse errors.
- */
 export function MermaidBlock({ code }: Props) {
   const id = useId().replace(/:/g, "m");
   const host = useRef<HTMLDivElement>(null);

@@ -3,10 +3,6 @@ locals {
   acr_password_secret_name   = "acr-password"
   storage_connection_secret_name = "azure-storage-connection"
 
-  # Use ingress FQDN (stable “application URL” in the portal). Do not use
-  # latest_revision_fqdn — it includes the revision suffix and changes on every
-  # deploy, which breaks same-apply updates to the frontend env and triggers
-  # “Provider produced inconsistent final plan”.
   backend_public_url = "https://${azurerm_container_app.backend.ingress[0].fqdn}"
 }
 
@@ -128,7 +124,6 @@ resource "azurerm_container_app" "frontend" {
       cpu    = var.frontend_cpu
       memory = var.frontend_memory
 
-      # Runtime URL for BFF (server); takes precedence in code over baked NEXT_PUBLIC_*.
       env {
         name  = "SWIFT_BACKEND_URL"
         value = local.backend_public_url

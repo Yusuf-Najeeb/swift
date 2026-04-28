@@ -1,38 +1,3 @@
-"""FastMCP server exposing Swift as an MCP tool provider.
-
-This module lets Swift run in two modes that share the same
-:class:`~fastmcp.FastMCP` instance and therefore the same tool
-registry:
-
-* **Stdio mode** — for local clients like Claude Desktop or the
-  ``mcp`` CLI. Launched with ``python -m backend.mcp.server``; the
-  process reads MCP JSON-RPC over stdin and writes responses to
-  stdout. The OS process boundary is the only trust boundary; the
-  ``SWIFT_MCP_SERVER_BEARER_TOKEN`` setting is deliberately ignored
-  in this mode.
-* **HTTP mode** — for cloud deployments and browser-adjacent
-  clients. :func:`backend.main.create_app` mounts the FastMCP
-  Streamable-HTTP ASGI app under ``SWIFT_MCP_SERVER_MOUNT_PATH``
-  (``/mcp`` by default). :class:`MCPBearerAuthMiddleware` enforces
-  ``Authorization: Bearer <token>`` on every request that lands
-  below the mount path when a token is configured.
-
-Tool surface
-------------
-One tool for now: ``write_article``. It accepts the flat set of
-fields that make up an :class:`~backend.agents.schemas.ArticleBrief`
-(chosen over a single ``brief`` object parameter because MCP clients
-expose tools more clearly when top-level arguments are primitives —
-Claude Desktop's UI, for instance, reads the docstring line for
-each parameter). The tool runs the Orchestrator's revision loop and
-then the Image Agent, and returns the final
-:class:`~backend.agents.schemas.FinalArticle`.
-
-``get_article`` is intentionally *not* implemented here — Swift has
-no article storage yet (see Step 9). Adding it now would mean
-shipping a placeholder that always 404s, which is worse than simply
-not advertising the tool. The Step 9 scaffolding adds it.
-"""
 
 from __future__ import annotations
 
@@ -70,13 +35,6 @@ def build_mcp_server(
     name: str = MCP_SERVER_NAME,
     instructions: str = MCP_SERVER_INSTRUCTIONS,
 ) -> FastMCP:
-    """Construct a fresh ``FastMCP`` instance with Swift's tools wired.
-
-    Exposed as a builder (not just a module-level singleton) so tests
-    can spin up an isolated server instance per test case without
-    state leaking across suites. :func:`get_mcp_server` is what the
-    FastAPI app and the stdio entrypoint use at runtime.
-    """
 
     mcp = FastMCP(name=name, instructions=instructions)
 
@@ -99,31 +57,6 @@ def build_mcp_server(
         extra_notes: Optional[str] = None,
         max_retries: Optional[int] = None,
     ) -> FinalArticle:
-        """Write and illustrate an article.
-
-        Args:
-            topic: Subject line the article is about. Required.
-            tone: Voice the Writer should adopt (``professional``,
-                ``casual``, ``academic``, ``conversational``, ...).
-            length: ``short`` (~400 words), ``medium`` (~800),
-                ``long`` (~1500+).
-            keywords: Words/phrases that must appear naturally in the
-                text. Empty list means none required.
-            audience: Intended reader (e.g. ``backend engineers``).
-                ``None`` = informed general reader.
-            extra_notes: Anything else the Writer should know —
-                background URLs the Evaluator should verify, angle
-                hints, stylistic preferences.
-            max_retries: Override for how many revision attempts the
-                Orchestrator makes before giving up. ``None`` = use
-                the server-side default (``SWIFT_ORCHESTRATOR_MAX_RETRIES``).
-
-        Returns:
-            A :class:`FinalArticle` with ``body_markdown`` (with image
-            markers already substituted for Pollinations URLs), an
-            ``images`` list (description + URL + alt text per image),
-            and a ``diagrams`` list (Mermaid source per diagram block).
-        """
 
         log.info(
             "write_article invoked: topic=%r tone=%r length=%r keywords=%s",
@@ -158,14 +91,6 @@ _SERVER_SINGLETON: Optional[FastMCP] = None
 
 
 def get_mcp_server() -> FastMCP:
-    """Return a process-wide ``FastMCP`` instance.
-
-    Lazy-built so importing :mod:`backend.mcp` doesn't force agent
-    wiring to happen at collection time. Subsequent calls return the
-    same instance — the FastAPI ASGI mount and the stdio entrypoint
-    must share a tool registry, otherwise tools registered in one
-    mode would be invisible in the other.
-    """
 
     global _SERVER_SINGLETON
     if _SERVER_SINGLETON is None:
@@ -173,24 +98,9 @@ def get_mcp_server() -> FastMCP:
     return _SERVER_SINGLETON
 
 
-# ─── HTTP-mount auth middleware ─────────────────────────────────────
 
 
 class MCPBearerAuthMiddleware:
-    """Scoped bearer-token check for the MCP HTTP mount.
-
-    Applied at the FastAPI app level but only enforces on requests
-    whose path starts with ``mount_path``. We do path-scoped auth
-    here (rather than mounting FastMCP behind a FastAPI dependency)
-    because the FastMCP Streamable-HTTP sub-app is a standalone ASGI
-    application — FastAPI's dependency-injection machinery doesn't
-    reach across the mount boundary. A small middleware that inspects
-    ``scope["path"]`` is the portable way.
-
-    Unauthenticated requests get a 401 with a short JSON body.
-    Unrelated paths pass through untouched so the REST endpoints and
-    healthchecks stay open.
-    """
 
     def __init__(
         self,
@@ -204,9 +114,6 @@ class MCPBearerAuthMiddleware:
         if not mount_path.startswith("/"):
             raise ValueError("mount_path must start with '/'")
         self.app = app
-        # Strip a trailing slash if present — Starlette's router uses
-        # the exact form we configured on the mount, but we compare
-        # prefix-wise so the normalisation has to match config.
         self._mount_path = mount_path.rstrip("/") or "/"
         self._token = token
 
@@ -235,15 +142,12 @@ class MCPBearerAuthMiddleware:
         mount = self._mount_path
         if mount == "/":
             return True
-        # Match ``/mcp`` *and* ``/mcp/...`` but NOT ``/mcps``.
         return path == mount or path.startswith(mount + "/")
 
     def _is_authenticated(self, scope: "Scope") -> bool:
         for raw_name, raw_value in scope.get("headers", []):
             if raw_name == b"authorization":
                 value = raw_value.decode("latin-1")
-                # "Bearer" is case-sensitive per RFC 6750 §2.1, but in
-                # practice clients send mixed case; accept both.
                 prefix, _, token = value.partition(" ")
                 if prefix.lower() == "bearer" and token == self._token:
                     return True
@@ -257,8 +161,6 @@ class MCPBearerAuthMiddleware:
                 "status": 401,
                 "headers": [
                     (b"content-type", b"application/json"),
-                    # Tell the client what auth we expected — handy
-                    # for debugging, and per RFC 6750 §3.
                     (
                         b"www-authenticate",
                         b'Bearer realm="swift-writer-mcp"',
@@ -277,28 +179,16 @@ class MCPBearerAuthMiddleware:
         )
 
 
-# ─── stdio entrypoint (for Claude Desktop et al.) ──────────────────
 
 
 @asynccontextmanager
 async def _stdio_lifespan() -> AsyncIterator[None]:
-    """One-shot async context that mirrors the FastAPI lifespan for
-    the stdio server: configures OpenRouter once before the loop
-    starts. We deliberately do not start any MCP subprocesses here —
-    agent MCP clients are spun up per-request inside the Orchestrator
-    so cold-start cost is pay-as-you-go."""
 
     configure_openrouter()
     yield
 
 
 def run_stdio(*, settings: Optional[Settings] = None) -> None:
-    """Run the Swift MCP server over stdio.
-
-    Invoked by ``python -m backend.mcp.server``; the function exists
-    as a named entrypoint so tests (and future CLI wrappers) can
-    drive it without relying on ``__main__``-only semantics.
-    """
 
     settings = settings or get_settings()
     log.info(
@@ -307,8 +197,6 @@ def run_stdio(*, settings: Optional[Settings] = None) -> None:
         bool(settings.mcp_server_bearer_token),
     )
     configure_openrouter()
-    # ``FastMCP.run`` is synchronous and manages its own event loop.
-    # The stdio transport is the library default so no kwargs needed.
     get_mcp_server().run()
 
 

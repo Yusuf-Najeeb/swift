@@ -1,4 +1,3 @@
-"""Pydantic schemas for persisted article metadata."""
 
 from __future__ import annotations
 
@@ -6,7 +5,6 @@ from pydantic import BaseModel, Field
 
 
 class SavedArticle(BaseModel):
-    """Metadata for an article saved to local storage."""
 
     filename: str = Field(..., description="Basename of the saved Markdown file.")
     relative_path: str = Field(
@@ -20,7 +18,6 @@ class SavedArticle(BaseModel):
 
 
 class ArticleListItem(BaseModel):
-    """One entry returned by :func:`list_saved_articles`."""
 
     filename: str = Field(..., description="Basename of the Markdown file.")
     title: str = Field(

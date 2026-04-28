@@ -1,9 +1,3 @@
-"""Application configuration for Swift Writer.
-
-All runtime settings are loaded via pydantic-settings, which means values
-can be provided either as environment variables or through a `.env` file
-placed at the project root (or inside ``backend/``). See ``.env.example``.
-"""
 
 from __future__ import annotations
 
@@ -17,31 +11,6 @@ MCPTransport = Literal["stdio", "sse", "http"]
 
 
 class MCPServerSpec(BaseModel):
-    """Declarative description of an MCP server to attach to an agent.
-
-    This is the config-layer shape — ``backend.agents.mcp_clients`` turns
-    a ``MCPServerSpec`` into a live ``MCPServer`` instance from the
-    Agents SDK. Keeping the spec in pure Pydantic means Swift can
-    round-trip MCP configuration through env vars (JSON), API payloads,
-    or test fixtures without dragging the Agents SDK along.
-
-    It lives in ``backend.config`` rather than ``backend.agents.schemas``
-    because ``Settings`` itself embeds a ``list[MCPServerSpec]``; keeping
-    the class here avoids cross-package import cycles.
-
-    Examples
-    --------
-    Local stdio server launched by ``uvx``::
-
-        {"name": "fetch", "transport": "stdio",
-         "command": "uvx", "args": ["mcp-server-fetch"]}
-
-    Remote HTTP server with a bearer token::
-
-        {"name": "tavily", "transport": "http",
-         "url": "https://mcp.tavily.com/",
-         "headers": {"Authorization": "Bearer ..."}}
-    """
 
     name: str = Field(..., description="Human-readable name used in logs and tool prefixes.")
     transport: MCPTransport = Field("stdio", description="Transport: stdio | sse | http.")
@@ -66,7 +35,6 @@ class MCPServerSpec(BaseModel):
 
 
 class Settings(BaseSettings):
-    """Strongly typed view of Swift's runtime configuration."""
 
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),
@@ -107,12 +75,6 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("SWIFT_WRITER_MODEL", "writer_model"),
     )
     evaluator_model: str = Field(
-        # gpt-4o is the default because the Evaluator now fact-checks via
-        # MCP tools (see writer_mcp_* / evaluator_mcp_* fields below) and
-        # Llama-3.1-8B proved unreliable at both structured output and
-        # tool-calling. gpt-4o gives us nuanced critique + robust tool
-        # use at a tenth of Sonnet's cost. Override via env for cheaper
-        # experiments (e.g. openai/gpt-4o-mini).
         "openai/gpt-4o",
         validation_alias=AliasChoices("SWIFT_EVALUATOR_MODEL", "evaluator_model"),
     )
@@ -146,10 +108,6 @@ class Settings(BaseSettings):
         description="Blob container name when using ``azure_storage_connection_string``.",
     )
 
-    # ─── API surface (Step 7 / production) ───────────────────
-    # When set, `POST /api/generate/stream`, `GET /api/articles`, `GET
-    # /api/articles/…`, and `GET /config` require `Authorization: Bearer
-    # <token>`. /health and ``GET /`` stay open for load balancers.
     api_bearer_token: Optional[str] = Field(
         None,
         validation_alias=AliasChoices(
@@ -167,7 +125,6 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("SWIFT_CORS_ORIGINS", "cors_origins"),
     )
 
-    # ─── MCP consumer wiring (Writer agent) ──────────────────
     writer_mcp_fetch_enabled: bool = Field(
         True,
         validation_alias=AliasChoices(
@@ -191,7 +148,6 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ─── MCP consumer wiring (Evaluator agent) ───────────────
     evaluator_mcp_fetch_enabled: bool = Field(
         True,
         validation_alias=AliasChoices(
@@ -232,7 +188,6 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ─── Orchestrator behavior ───────────────────────────────
     orchestrator_max_retries: int = Field(
         3,
         ge=0,
@@ -248,13 +203,6 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ─── Image agent (Pollinations.ai) ───────────────────────
-    # Pollinations.ai exposes a zero-auth, generate-on-GET endpoint
-    # (``GET https://image.pollinations.ai/prompt/{prompt}``). The
-    # Image Agent doesn't make HTTP calls at generation time — it just
-    # builds these URLs and embeds them as Markdown images. The browser
-    # renders them on page load, which means Step 5 stays deterministic
-    # and latency-free on our side.
     pollinations_base_url: str = Field(
         "https://image.pollinations.ai/prompt",
         validation_alias=AliasChoices(
@@ -362,12 +310,6 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ─── MCP server layer (Step 6) ────────────────────────────
-    # Swift is an MCP *client* in the Writer + Evaluator (those use
-    # ``mcp-server-fetch`` / Serper). The settings below govern Swift
-    # as an MCP *server* — the outward-facing surface that external
-    # clients (Claude Desktop, Cursor, other agents) talk to in order
-    # to invoke Swift's ``write_article`` tool.
     mcp_server_enabled: bool = Field(
         True,
         validation_alias=AliasChoices(
@@ -413,7 +355,6 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ─── SSE streaming endpoint (Step 7) ──────────────────────
     sse_keep_alive_seconds: float = Field(
         15.0,
         gt=0,
@@ -436,10 +377,6 @@ class Settings(BaseSettings):
     @field_validator("mcp_server_mount_path", mode="after")
     @classmethod
     def _validate_mount_path(cls, value: str) -> str:
-        # FastMCP's ASGI mounting machinery requires a leading slash
-        # and gets confused by trailing slashes (the router treats
-        # ``/mcp`` and ``/mcp/`` as distinct prefixes). Normalise here
-        # so users can be sloppy in .env.
         stripped = value.strip()
         if not stripped.startswith("/"):
             raise ValueError("mcp_server_mount_path must start with '/'")
@@ -450,11 +387,8 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors(cls, value):
-        # Accept comma separated strings from env vars, e.g.
-        #   SWIFT_CORS_ORIGINS=http://localhost:3000,https://swift.example.com
         if isinstance(value, str):
             if value.strip().startswith("["):
-                # Let pydantic handle JSON list natively.
                 return value
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
@@ -462,10 +396,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return a cached ``Settings`` instance.
-
-    Using ``lru_cache`` means we parse the environment exactly once per
-    process, which keeps FastAPI dependency injection cheap.
-    """
 
     return Settings()  # type: ignore[call-arg]

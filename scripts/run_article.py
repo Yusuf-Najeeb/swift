@@ -1,35 +1,3 @@
-"""Tiny end-to-end CLI for Swift.
-
-Runs a full article through the pipeline and prints it to stdout. Zero
-frontend, zero HTTP — just the agent pipeline end-to-end so you can
-confirm everything wires up before the FastAPI layer lands (Step 7).
-
-Usage
------
-
-From the project root, with the uv-managed venv:
-
-    uv run python scripts/run_article.py "Why small language models matter"
-
-Options:
-
-    --tone       voice (default: conversational)
-    --length     short | medium | long (default: short)
-    --keyword    repeatable; at least one keyword recommended
-    --audience   target reader (e.g. "software engineers")
-    --retries    orchestrator revision budget (default: from Settings)
-    --no-images  skip the Image Agent (useful when Pollinations is slow)
-    --out        write the final article Markdown to a file as well as stdout
-
-Exit codes:
-
-* 0 — article produced (approved OR max-retries exhausted; both are
-  legitimate outcomes, see FinalArticle for details)
-* 1 — a runtime error occurred (missing API key, MCP crash, etc.)
-
-This script intentionally stays thin: it doesn't wrap the pipeline
-with anything Swift-specific, so if it works the pipeline works.
-"""
 
 from __future__ import annotations
 
@@ -40,11 +8,6 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-# Make ``backend.*`` importable when this file is invoked as a plain
-# script (``python scripts/run_article.py ...``). Python prepends the
-# script's own directory to ``sys.path`` — not the project root — so
-# without this shim the agent imports fail. Prepending is deliberate:
-# it beats a pre-installed "backend" package of the same name.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
@@ -101,22 +64,17 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
 
 def _configure_logging(verbose: bool) -> None:
-    # Surface per-iteration scores from the orchestrator by default; go
-    # deeper in verbose mode for debugging wiring.
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(asctime)s %(levelname)-5s %(name)s  %(message)s",
         datefmt="%H:%M:%S",
     )
-    # Quiet a couple of chatty libraries in non-verbose mode.
     if not verbose:
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("openai").setLevel(logging.WARNING)
 
 
 def _print_run_summary(run: ArticleRun) -> None:
-    # Compact, human-readable recap of the revision loop — the most
-    # useful thing to see in a terminal demo.
     print()
     print("─" * 70)
     print(f"Run finished: {run.iterations} attempt(s), approved={run.approved}")
@@ -164,7 +122,6 @@ async def _run(args: argparse.Namespace) -> int:
         body = final.body_markdown
         image_urls = [img.url for img in final.images]
 
-    # Article dump.
     print("=" * 70)
     print(f"TITLE: {draft.title}")
     print(f"SUMMARY: {draft.summary}")

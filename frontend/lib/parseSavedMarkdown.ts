@@ -1,8 +1,3 @@
-/**
- * Parse Swift's saved article format: YAML front matter + Markdown body.
- * Used when loading a previously saved file into the preview.
- */
-
 export function parseSavedMarkdown(
   text: string
 ): { title: string; summary: string; body_markdown: string } {

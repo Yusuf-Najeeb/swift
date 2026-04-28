@@ -1,7 +1,3 @@
-"""Local article persistence (Step 9).
-
-Writes the final article Markdown to disk under `backend/<articles_dir>/`.
-"""
 
 from __future__ import annotations
 
@@ -17,12 +13,10 @@ from backend.storage.schemas import ArticleListItem, SavedArticle
 
 
 def _backend_root() -> Path:
-    # backend/storage/file_manager.py -> backend/
     return Path(__file__).resolve().parents[1]
 
 
 def get_articles_dir(settings: Settings) -> Path:
-    """Return the absolute directory for saved articles."""
 
     configured = Path(settings.articles_dir)
     if configured.is_absolute():
@@ -31,12 +25,10 @@ def get_articles_dir(settings: Settings) -> Path:
 
 
 def article_storage_is_azure(settings: Settings) -> bool:
-    """True when ``AZURE_STORAGE_CONNECTION_STRING`` is set (use Blob for articles)."""
     return bool((getattr(settings, "azure_storage_connection_string", None) or "").strip())
 
 
 def list_saved_articles(settings: Settings) -> list[ArticleListItem]:
-    """Return all ``*.md`` in the articles directory, newest mtime first."""
 
     if article_storage_is_azure(settings):
         from backend.storage import blob_articles
@@ -119,7 +111,6 @@ def save_final_article(
     iterations: int,
     settings: Settings,
 ) -> SavedArticle:
-    """Persist an article and return its metadata."""
 
     markdown = _render_markdown_document(
         article, brief=brief, approved=approved, iterations=iterations
@@ -165,7 +156,6 @@ def save_final_article(
 
 
 def read_article_bytes(settings: Settings, filename: str) -> bytes:
-    """Load article body (local disk or Azure Blob)."""
     if article_storage_is_azure(settings):
         from backend.storage import blob_articles
 

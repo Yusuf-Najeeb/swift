@@ -1,17 +1,3 @@
-/**
- * Parse FastAPI + sse-starlette frames.
- *
- * `sse-starlette` uses CRLF line endings, so the blank line *between* events
- * is ``\r\n\r\n`` — in JS, ``\n\n`` is **not** a substring of that, so
- * a naive "\n\n" split never flushes a frame. The last event
- * (``run.completed`` with a large JSON payload) would then be stuck in the
- * buffer and the article never appears in the UI.
- *
- * After normalizing to LF, a frame looks like: ``event: T\ndata: {...}\n\n`` .
- *
- * The SSE spec allows multiple ``data:`` lines (split on ``\n`` in the
- * payload); we join them with ``\n`` before ``JSON.parse``.
- */
 export async function* streamSseJson(
   response: Response
 ): AsyncGenerator<{ event: string; data: unknown }> {
@@ -50,9 +36,7 @@ export async function* streamSseJson(
         if (msg) {
           try {
             yield { event: msg.event, data: JSON.parse(msg.data) as unknown };
-          } catch {
-            /* stream ended on incomplete chunk; ignore */
-          }
+          } catch {}
         }
       }
       break;

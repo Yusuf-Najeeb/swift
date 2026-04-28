@@ -1,4 +1,3 @@
-"""FastAPI dependencies — optional API bearer auth for production."""
 
 from __future__ import annotations
 
@@ -31,11 +30,6 @@ async def require_api_bearer(
     request: Request,
     settings: Settings = Depends(get_settings),
 ) -> None:
-    """If ``SWIFT_API_BEARER_TOKEN`` is set, require ``Authorization: Bearer …``.
-
-    When unset, all callers are allowed (local dev). When set, use a
-    length-safe comparison to reduce timing leaks.
-    """
 
     expected = (settings.api_bearer_token or "").strip()
     if not expected:

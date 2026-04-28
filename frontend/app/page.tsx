@@ -13,10 +13,6 @@ import type { FinalArticle, PipelineEventData } from "@/lib/pipelineTypes";
 import { isRunCompleted, isRunFailed } from "@/lib/pipelineTypes";
 import { useCallback, useRef, useState } from "react";
 
-/**
- * User-facing body only. Length, keywords, image pipeline, and retries
- * are controlled by the backend (defaults in Settings / GenerateStreamRequest).
- */
 function buildRequestJson(form: FormState) {
   return JSON.stringify({
     brief: {

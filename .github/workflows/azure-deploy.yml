@@ -14,7 +14,6 @@ concurrency:
 env:
   BACKEND_APP_NAME: swift-backend
   FRONTEND_APP_NAME: swift-frontend
-  # Must match the image repository names you use in Terraform (path after ACR host).
   BACKEND_IMAGE_NAME: swift-backend
   FRONTEND_IMAGE_NAME: swift-frontend
 
@@ -23,8 +22,6 @@ jobs:
     name: Verify (build / import checks)
     runs-on: ubuntu-latest
     env:
-      # Pydantic requires a value. Prefer repo secret `OPENROUTER_API_KEY` (same as production)
-      # so CI loads Settings with a real key; if unset, placeholder still satisfies import (no API calls here).
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY != '' && secrets.OPENROUTER_API_KEY || 'ci-placeholder-not-used' }}
     steps:
       - uses: actions/checkout@v4
@@ -53,7 +50,6 @@ jobs:
           npm ci
           npx next build
         env:
-          # Placeholder; real bake uses backend HTTPS URL in deploy job.
           NEXT_PUBLIC_API_URL: "http://127.0.0.1:8000"
 
   deploy:
@@ -95,8 +91,6 @@ jobs:
       - name: Resolve ACR and image tag
         id: meta
         env:
-          # Use repository *variable* ACR_NAME (Settings → Actions → Variables), or
-          # repository *secret* ACR_NAME if you put it there by mistake.
           ACR_NAME_VAR: ${{ vars.ACR_NAME }}
           ACR_NAME_SECRET: ${{ secrets.ACR_NAME }}
         run: |
@@ -106,7 +100,6 @@ jobs:
           else
             ACR_NAME_RAW="$ACR_NAME_SECRET"
           fi
-          # Short name (e.g. myregistry), 5–50 alnum chars. *.azurecr.io is normalized.
           r=$(printf '%s' "$ACR_NAME_RAW" | tr -d ' \r\n' | tr '[:upper:]' '[:lower:]')
           r="${r#https://}"
           r="${r#http://}"

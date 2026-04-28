@@ -19,7 +19,6 @@ type Props = {
   onChange: (s: FormState) => void;
   disabled: boolean;
   onSubmit: () => void;
-  /** Latest pipeline message (one line, under the form). */
   statusLine: string | null;
 };
 

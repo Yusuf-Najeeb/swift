@@ -2,10 +2,6 @@ import { serverBackendBaseUrl } from "@/lib/backendBaseUrl";
 import { backendAuthHeaders } from "@/lib/serverBackendAuth";
 import { NextRequest } from "next/server";
 
-/**
- * BFF: proxies POST bodies to the FastAPI SSE endpoint so the browser
- * talks same-origin (no CORS) and we can add auth / rate limits later.
- */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 

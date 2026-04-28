@@ -1,6 +1,3 @@
-# Private Blob container for generated article Markdown. The backend
-# uses AZURE_STORAGE_CONNECTION_STRING at runtime (injected as an ACA secret).
-
 resource "azurerm_storage_account" "articles" {
   name                = var.storage_account_name
   resource_group_name = azurerm_resource_group.swift.name
