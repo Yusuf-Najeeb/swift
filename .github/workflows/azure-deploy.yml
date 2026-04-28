@@ -36,8 +36,9 @@ jobs:
 
       - name: Python — sync and import app
         run: |
-          uv sync
+          uv sync --group dev
           uv run python -c "import backend.main; print('backend import ok')"
+          uv run pytest
 
       - name: Frontend — install and production build
         uses: actions/setup-node@v4
