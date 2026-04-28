@@ -95,14 +95,16 @@ export default function Home() {
   const busy = status === "running";
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800 bg-zinc-900/80 px-4 py-4 sm:px-8 text-center">
-        <h1 className="text-[3rem] font-semibold tracking-tight text-zinc-50">
-          Swift
-        </h1>
-        <p className="mt-1 text-xl text-zinc-500">
-        Get your technical writing done faster.
-        </p>
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="app-header bg-background py-4 sm:px-8 text-center">
+        <div className="flex flex-col md:flex-row items-end justify-center md:justify-between">
+          <h1 className="text-[3rem] font-semibold tracking-tight text-foreground font-heading">
+            Swift
+          </h1>
+          <p className="mt-1 text-md text-foreground">
+          Get your technical writing done faster.
+          </p>
+        </div>
       </header>
       <main className="mx-auto flex flex-col lg:flex-row gap-8 p-4 pb-12 sm:p-8">
         <section className="w-full lg:max-w-[400px]">

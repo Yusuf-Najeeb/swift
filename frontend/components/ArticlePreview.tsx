@@ -13,7 +13,7 @@ type Props = {
 export function ArticlePreview({ article }: Props) {
   if (!article) {
     return (
-      <div className="rounded-lg border border-dashed border-zinc-600 bg-zinc-900/30 p-6 text-center text-sm text-zinc-500">
+      <div className="rounded-lg border border-dashed border-emerald-500/60 bg-background p-6 text-center text-sm text-foreground font-sans">
         When the pipeline finishes, the final article (Markdown) appears
         here. Mermaid diagrams render when possible.
       </div>
@@ -24,60 +24,60 @@ export function ArticlePreview({ article }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-2 font-sans">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-100">
+          <h2 className="text-lg font-semibold text-foreground font-heading">
             {article.title}
           </h2>
-          <p className="text-sm text-zinc-400">{article.summary}</p>
+          <p className="text-sm text-foreground">{article.summary}</p>
         </div>
         <button
           type="button"
-          className="shrink-0 rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-700"
+          className="shrink-0 rounded-md border border-emerald-500/60 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-emerald-500/40"
           onClick={() => downloadMarkdown(article)}
         >
           Download .md
         </button>
       </div>
-      <article className="prose-article min-w-0 rounded-lg border border-zinc-700/80 bg-zinc-950/40 p-4 text-zinc-200">
+      <article className="prose-article min-w-0 rounded-lg border border-emerald-500/40 bg-background p-4">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
             pre: PreWithMermaid,
             h1: (p) => (
               <h1
-                className="mb-3 mt-0 text-2xl font-bold text-zinc-50"
+                className="mb-3 mt-0 text-2xl font-bold text-foreground"
                 {...p}
               />
             ),
             h2: (p) => (
               <h2
-                className="mb-2 mt-6 text-xl font-semibold text-zinc-100"
+                className="mb-2 mt-6 text-xl font-semibold text-foreground"
                 {...p}
               />
             ),
             h3: (p) => (
-              <h3 className="mb-2 mt-4 text-lg font-medium" {...p} />
+              <h3 className="mb-2 mt-4 text-lg font-medium text-foreground" {...p} />
             ),
             p: (p) => <p className="mb-3 leading-relaxed" {...p} />,
             ul: (p) => (
-              <ul className="mb-3 list-inside list-disc space-y-1" {...p} />
+              <ul className="mb-3 list-inside list-disc space-y-1 text-foreground" {...p} />
             ),
             ol: (p) => (
               <ol
-                className="mb-3 list-inside list-decimal space-y-1"
+                className="mb-3 list-inside list-decimal space-y-1 text-foreground"
                 {...p}
               />
             ),
             a: (p) => (
               <a
-                className="text-emerald-400 underline-offset-2 hover:underline"
+                className="text-emerald-500 underline-offset-2 hover:underline"
                 {...p}
               />
             ),
             blockquote: (p) => (
               <blockquote
-                className="my-3 border-l-4 border-zinc-600 pl-4 text-zinc-400 italic"
+                className="my-3 border-l-4 border-emerald-500/40 pl-4 text-foreground italic"
                 {...p}
               />
             ),
@@ -86,7 +86,7 @@ export function ArticlePreview({ article }: Props) {
               if (inline) {
                 return (
                   <code
-                    className="rounded bg-zinc-800 px-1 py-0.5 font-mono text-sm text-amber-200/90"
+                    className="rounded bg-background px-1 py-0.5 font-mono text-sm text-foreground"
                     {...p}
                   />
                 );
@@ -96,7 +96,7 @@ export function ArticlePreview({ article }: Props) {
             img: (p) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                className="my-4 max-h-[480px] max-w-full rounded-lg border border-zinc-700/60 object-contain"
+                className="my-4 max-h-[480px] max-w-full rounded-lg border border-emerald-500/40 object-contain"
                 alt={p.alt ?? ""}
                 {...p}
               />
@@ -133,7 +133,7 @@ function PreWithMermaid({
   }
   return (
     <pre
-      className="my-4 overflow-x-auto rounded-md border border-zinc-700 bg-zinc-900/80 p-3 text-sm"
+      className="my-4 overflow-x-auto rounded-md border border-emerald-500/40 bg-background p-3 text-foreground text-sm"
       {...rest}
     >
       {children}

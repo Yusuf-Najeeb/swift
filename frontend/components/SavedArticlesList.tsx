@@ -89,22 +89,22 @@ export function SavedArticlesList({ refreshToken, onLoadArticle }: Props) {
   };
 
   return (
-    <div className="mt-6 rounded-lg border border-zinc-700/80 bg-zinc-900/40 p-4">
+    <div className="mt-6 rounded-lg border border-zinc-700/80 bg-background p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-zinc-200">
+        <h2 className="text-sm font-semibold text-foreground">
           Saved articles
         </h2>
         <button
           type="button"
           disabled={loading}
           onClick={() => void load()}
-          className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700 disabled:opacity-50"
+          className="rounded border border-emerald-500/60 px-2 py-1 text-xs text-foreground hover:bg-emerald-500/40 disabled:opacity-50"
         >
           {loading ? "Loading…" : "Refresh"}
         </button>
       </div>
       {error && (
-        <p className="mb-2 text-xs text-red-300" role="alert">
+        <p className="mb-2 text-xs text-red-500" role="alert">
           {error}
         </p>
       )}
