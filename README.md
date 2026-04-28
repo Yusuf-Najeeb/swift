@@ -11,136 +11,64 @@ fills in illustrations via [Pollinations.ai](https://pollinations.ai).
 - **Frontend**: Next.js 15 (App Router) + Tailwind; live SSE via `app/api/stream` BFF
 - **Storage**: local `backend/articles/` in dev; **Azure Blob** when `AZURE_STORAGE_CONNECTION_STRING` is set (Terraform provisions the account + container)
 
-## Build status
+## Architecture
 
-Following a 12-step plan — current state:
+Swift exposes the same **article pipeline** everywhere: a deterministic Python **Orchestrator** runs the **Writer** and **Evaluator** agents (via OpenRouter) in a loop until the draft passes or retries are exhausted, then runs the **Image Agent** (Pollinations URLs for `[IMAGE: …]`, Mermaid diagrams surfaced separately). **FastAPI** serves REST (health, config, article files), **SSE** (`POST /api/generate/stream`), and optional **MCP HTTP** (`/mcp`). **Next.js** proxies browser SSE through `POST /api/stream`. A separate **MCP stdio** process uses the same FastMCP tool registry without going through HTTP.
 
-- [x] **Step 1** — FastAPI + OpenRouter connection + config
-- [x] **Step 2** — Writer Agent (OpenAI Agents SDK)
-- [x] **Step 2b** — Writer agent as MCP consumer (default: `mcp-server-fetch`)
-- [x] **Step 3** — Evaluator Agent + structured JSON output
-      (gpt-4o by default, fact-checks via `mcp-server-fetch` +
-      Serper Google search when `SERPER_API_KEY` is set)
-- [x] **Step 4** — Orchestrator wiring Writer ↔ Evaluator loop
-      (deterministic Python; retries until `score >= 7` or
-      `SWIFT_ORCHESTRATOR_MAX_RETRIES` exhausted)
-- [x] **Step 5** — Image Agent substituting `[IMAGE: ...]`
-      markers for Pollinations.ai URLs (no auth needed;
-      generate-on-GET, so zero latency on our side). Writer
-      also emits `` ```mermaid `` fenced blocks for diagrams;
-      Image Agent surfaces them as `FinalArticle.diagrams`
-      without modifying the body — the frontend renders them.
-- [x] **Step 6** — FastMCP server layer. `write_article` is
-      exposed as an MCP tool; the Streamable-HTTP transport is
-      mounted into FastAPI at `SWIFT_MCP_SERVER_MOUNT_PATH`
-      (default `/mcp`) and optionally bearer-token authenticated.
-      Stdio entrypoint for local MCP clients:
-      `uv run python -m backend.mcp.server`.
-- [x] **Step 7** — FastAPI SSE streaming endpoint
-      (`POST /api/generate/stream` returns a Server-Sent Events
-      stream of typed `PipelineEvent` objects — one per pipeline
-      transition — ending with the full `FinalArticle` payload.
-      Keep-alive pings survive long Writer calls behind proxies.)
-- [x] **Step 8** — Next.js UI: compact form (topic, audience, tone) +
-      `ArticlePreview` + one-line status under the form; pipeline options
-      (length, images, retries) use backend defaults
-      (Markdown + Mermaid), BFF at `POST /api/stream` → FastAPI
-      `POST /api/generate/stream`. Copy `frontend/.env.local.example`
-      to `frontend/.env.local` and set `NEXT_PUBLIC_API_URL` if the
-      API is not on `http://127.0.0.1:8000`.
-- [x] **Step 9** — `file_manager.py` for article storage (saved `.md` under
-      `backend/articles/`, list + download API, UI list)
-- [x] **Step 10** — Docker: `backend/Dockerfile`, `frontend/Dockerfile`,
-      `docker-compose.yml` (named volume for `backend/articles/`)
-- [x] **Step 11** — Azure baseline in `terraform/` (ACR, Log Analytics, Container
-      Apps Environment, backend + optional frontend app). See
-      `terraform/README.md` for required inputs and the two-step image workflow.
-- [ ] Step 12 — GitHub Actions CI/CD
+```mermaid
+flowchart TB
+  subgraph clients["Clients"]
+    Browser["Browser"]
+    NextUI["Next.js UI"]
+    ApiClients["REST / SSE clients"]
+    McpHttp["MCP over HTTP"]
+    McpStdio["MCP stdio"]
+  end
 
-## Prerequisites
+  subgraph frontend["frontend"]
+    Bff["BFF POST /api/stream"]
+  end
 
-- Python **3.11+**
-- [`uv`](https://docs.astral.sh/uv/) — Swift uses uv as its package manager
-  (install: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- An **OpenRouter API key** — https://openrouter.ai/keys
-- **Node.js 20+** and npm — for the Next.js app in `frontend/`
+  subgraph fastapi["FastAPI"]
+    Sse["POST /api/generate/stream"]
+    McpMount["FastMCP /mcp"]
+    Rest["REST /health /config /articles"]
+  end
 
-## Quickstart
+  subgraph pipeline["Article pipeline"]
+    Orch["Orchestrator"]
+    Writer["Writer agent"]
+    Eval["Evaluator agent"]
+    Img["Image Agent"]
+  end
 
-```bash
-# 1. Configure env
-cp .env.example .env
-# then open .env and paste your OPENROUTER_API_KEY
+  subgraph external["External services"]
+    OpenRouter["OpenRouter"]
+    Pollinations["Pollinations.ai"]
+    McpTools["Optional MCP tools fetch / Serper"]
+  end
 
-# 2. Install deps (creates .venv and uv.lock-pinned packages)
-uv sync
+  subgraph storage["Storage"]
+    Articles["backend/articles or Azure Blob"]
+  end
 
-# 3. Start the API (from the project root)
-uv run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
-
-# 4. In another terminal: Next.js (from the project root)
-cd frontend
-cp .env.local.example .env.local   # optional; default API URL is http://127.0.0.1:8000
-npm install                         # first time only
-npm run dev
-# → http://localhost:3000
+  Browser --> NextUI --> Bff --> Sse --> Orch
+  ApiClients --> Sse
+  ApiClients --> Rest
+  McpHttp --> McpMount --> Orch
+  McpStdio --> Orch
+  Rest --> Articles
+  Orch --> Writer --> OpenRouter
+  Orch --> Eval --> OpenRouter
+  Writer -.-> McpTools
+  Eval -.-> McpTools
+  Orch --> Img --> Pollinations
+  Orch --> Articles
 ```
 
-`uv sync` creates `.venv/` at the project root and installs every
-runtime dependency in `pyproject.toml` at the versions pinned in
-`uv.lock`. Add a new package with `uv add some-pkg`. The backend
-Dockerfile uses `uv sync --no-dev` (equivalent to `uv sync` until a dev
-group is added back to `pyproject.toml`).
+### Running the application
 
-Then:
-
-```bash
-curl http://localhost:8000/health
-# → {"status":"ok","service":"Swift Writer"}
-
-curl http://localhost:8000/config
-# → shows the currently wired OpenRouter model slugs
-```
-
-Interactive API docs: <http://localhost:8000/docs>
-
-### Docker (Step 10)
-
-Requires [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2.
-
-```bash
-cp .env.example .env
-# edit .env — at minimum set OPENROUTER_API_KEY
-
-docker compose up --build
-```
-
-The backend Dockerfile **installs Node/npm by default** (`WITH_NODE=1`) so the Evaluator can use **`npx` in-container** (e.g. Serper with `SERPER_API_KEY`). That `apt` layer is slow on poor networks. For a **slimmer/faster** image, build with `WITH_NODE=0` or set `services.backend.build.args.WITH_NODE` to `"0"` in `docker-compose.yml`.
-
-- **UI:** <http://localhost:3000>
-- **API:** <http://localhost:8000> (e.g. `/docs`, `/health`), MCP (if enabled) at `/mcp`
-- **Saved articles** are stored in a Compose named volume (`articles_data` → `/app/backend/articles` in the backend container)
-
-The frontend image is built with `NEXT_PUBLIC_API_URL=http://backend:8000` so the Next.js BFF can reach the API on the Compose network. The first cold start may still wait on `uvx` / `npx` MCP helpers; the backend health check allows up to two minutes before the frontend starts.
-
-**Production hardening (recommended when the network is not just your laptop):**
-
-- Set **`SWIFT_API_BEARER_TOKEN`** to a long random string in the **root** `.env`. The same value must be in **`frontend/.env.local`** as `SWIFT_API_BEARER_TOKEN` so the Next BFF can call the API. When this is set, the pipeline, article file APIs, and `GET /config` require `Authorization: Bearer <token>`. **`GET /health` and `GET /` stay open** for probes.
-- Set **`SWIFT_MCP_SERVER_BEARER_TOKEN`** if you expose the mounted MCP HTTP surface; the server logs a warning on startup if MCP is enabled without it.
-- Put **rate limits** and **IP allow lists** at your reverse proxy or API gateway; this app does not replace those.
-- For a **new public origin** (e.g. `https://app.example.com`), add it to **`SWIFT_CORS_ORIGINS`**.
-
-**Why the API “hangs” after a request (first time):** the Writer and
-Evaluator start separate [`uvx mcp-server-fetch`](https://github.com/modelcontextprotocol/servers) subprocesses. On a **cold**
-machine or cache, `uv` downloads that package once per process; you may
-see *Resolving dependencies…* in the same terminal as Uvicorn for a
-minute or two, and the SSE stream will not finish until those servers
-are up. **Mitigations:** (1) pre-warm: `UV_NO_PROGRESS=1 uvx
-mcp-server-fetch </dev/null` once; (2) for UI-only work, set
-`SWIFT_WRITER_MCP_FETCH_ENABLED=0` and
-`SWIFT_EVALUATOR_MCP_FETCH_ENABLED=0` in `.env` so the pipeline uses
-no MCP tools and starts immediately; (3) with `SERPER_API_KEY`, the
-Evaluator also spawns `npx` the first time — same idea.
+This README does not spell out install or dev-server commands (Python/`uv`, Node, Docker). Configure environment from `.env.example` at the repo root and `frontend/.env.local.example` for the UI; run the FastAPI app from `backend.main:app`, the Next.js app under `frontend/`, or use `docker-compose.yml` / `terraform/` for containers and Azure—see `terraform/README.md` for cloud inputs.
 
 ## Using Swift as an MCP server
 
@@ -153,8 +81,8 @@ registry.
 ### HTTP (Streamable-HTTP) — cloud & networked clients
 
 Mounted into the FastAPI app at `SWIFT_MCP_SERVER_MOUNT_PATH`
-(default `/mcp`). Once `uv run uvicorn backend.main:app` is up, the
-endpoint is live at <http://localhost:8000/mcp/>. Set
+(default `/mcp`). When the API is running locally, the endpoint is at
+<http://localhost:8000/mcp/>. Set
 `SWIFT_MCP_SERVER_BEARER_TOKEN` for public deployments — every
 request under the mount path then needs
 `Authorization: Bearer <token>`; the REST endpoints (`/`, `/health`,
@@ -191,7 +119,7 @@ required; everything else falls back to the same defaults as
 `ArticleBrief`. The return value is the full `FinalArticle`
 (Markdown body with images substituted + structured diagram index).
 
-## Streaming the pipeline to a browser (Step 7)
+## Streaming the pipeline to a browser
 
 Human callers don't want a 60-second blank tab while the Orchestrator
 drafts, grades, and revises. `POST /api/generate/stream` opens a
@@ -233,7 +161,7 @@ const response = await fetch("/api/generate/stream", {
 });
 
 const reader = response.body!.pipeThrough(new TextDecoderStream()).getReader();
-// then parse SSE frames — the Next.js client in Step 8 ships a helper
+// then parse SSE frames — the Next.js client ships a helper
 ```
 
 Native `EventSource` is not used because SSE via `EventSource` only
@@ -247,15 +175,15 @@ swift-writer/
 │   ├── agents/           # Agent definitions + OpenRouter provider wiring
 │   │   ├── providers.py    # configure_openrouter(), openrouter_model()
 │   │   ├── schemas.py       # ArticleBrief, EvaluatorFeedback, WriterOutput, ArticleRun, FinalArticle
-│   │   ├── mcp_clients.py   # MCP server factory — Step 2b
-│   │   ├── writer.py        # build_writer_agent() — Step 2 + 2b
-│   │   ├── evaluator.py     # build_evaluator_agent() — Step 3
-│   │   ├── orchestrator.py  # orchestrate_article() — Step 4
-│   │   ├── image_agent.py   # illustrate_article() — Step 5
-│   │   └── events.py        # PipelineEvent union — Step 7
-│   ├── api/              # FastAPI routers — SSE streaming endpoint (Step 7)
-│   ├── mcp/              # FastMCP server (Step 6)
-│   ├── storage/          # File + blob storage (Step 9)
+│   │   ├── mcp_clients.py   # MCP server factory
+│   │   ├── writer.py        # build_writer_agent()
+│   │   ├── evaluator.py     # build_evaluator_agent()
+│   │   ├── orchestrator.py  # orchestrate_article()
+│   │   ├── image_agent.py   # illustrate_article()
+│   │   └── events.py        # PipelineEvent union
+│   ├── api/              # FastAPI routers — SSE streaming endpoint
+│   ├── mcp/              # FastMCP server
+│   ├── storage/          # File + blob storage
 │   ├── articles/         # Generated .md output (gitignored)
 │   ├── config.py         # pydantic-settings Settings + get_settings()
 │   └── main.py           # FastAPI app factory + /health, /, /config
